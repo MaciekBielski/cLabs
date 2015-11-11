@@ -1,0 +1,6 @@
+-I./include
+-std=gnu99
+-pedantic
+-Wall
+-pthread
+-lm

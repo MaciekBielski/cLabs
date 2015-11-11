@@ -1,0 +1,15 @@
+#Ignore all
+./*
+./*
+
+#Ignore all with extensions
+./*.*
+./*.*
+
+#Except for
+!README.md
+!.gitignore
+!*.c
+!*.h
+![Mm]akefile
+
