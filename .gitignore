@@ -1,10 +1,10 @@
 #Ignore all
 ./*
-./*
 
 #Ignore all with extensions
 ./*.*
-./*.*
+*.swp
+*.swo
 
 #Except for
 !README.md
