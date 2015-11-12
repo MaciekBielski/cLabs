@@ -1,8 +1,8 @@
 #Ignore all
-./*
+*
 
 #Ignore all with extensions
-./*.*
+*.*
 *.swp
 *.swo
 
