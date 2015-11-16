@@ -6,7 +6,12 @@
  * [+] popStack, pushStack,
  * [+] tokenization- part1, no logic, all pushed on stack,
  * [+] operator levels assignement,
- * [-] operator workers assignement
+ * [+] operator workers assignement
+ * [+] algorithm - v1
+ * [+] add brackets
+ * [-] floats
+ * [-] leading minus
+ * [-] errors
  */
 #include <stdio.h>
 #include <stdbool.h>
@@ -17,9 +22,10 @@
 #include <glib.h>
 #include <assert.h>
 
-#define OP_SET "+-*/="
-#define OP_L1 "+-="
-#define OP_L2 "*/"
+#define OP_SET "+-*/=()"
+#define OP_L2 "+-="
+#define OP_L3 "*/"
+#define OP_L1 "()"
 
 typedef enum{ OP, DIG } TokenType;
 typedef struct Token
@@ -49,6 +55,10 @@ static void parse_char(char c)
     //initial previous token
     static Token *prev_op = NULL;
     static uint8_t curr_level = 0;
+    // left and right terminators
+    static double lTerm=(double)'\0';
+    static double rTerm=(double)'=';
+    static size_t nest_level=0;
     while(!is_valid(c));
         //wait asynchronously for the next character
     if(isdigit(c))
@@ -81,8 +91,21 @@ static void parse_char(char c)
         printf("\tnext_op: %c, level: %d\n", (char)next_op->val, next_op->level);
         while( next_op->level <= prev_op->level )
         {
+            if(c=='(')
+            {
+                lTerm='(';
+                rTerm=')';
+                nest_level++;
+                push_stack(prev_op);
+                push_stack(next_op);
+                push_stack(new_token('0'));
+                prev_op = init_op;
+                curr_level = prev_op->level;
+                return;
+            }
             printf("\tR: prev_op: %c, level: %d\n", (char)prev_op->val, prev_op->level);
             printf("\tR: next_op: %c, level: %d\n", (char)next_op->val, next_op->level);
+            print_stack();
             Token *r_tok = pop_stack();
             Token *l_tok = pop_stack();
             assert(r_tok->level==0 && l_tok->level==0);
@@ -90,7 +113,7 @@ static void parse_char(char c)
             tmp->val = prev_op->work(l_tok->val, r_tok->val);
             printf("\tR: tmp val: %lf, level: %d\n", tmp->val, tmp->level);
             prev_op = pop_stack();
-            if(prev_op->val == (double)'\0')
+            if(prev_op->val == lTerm)
             {
                 push_stack(prev_op);
                 puts("null pop-push");
@@ -99,14 +122,26 @@ static void parse_char(char c)
             free_token(r_tok);
             free_token(l_tok);
             print_stack();
-            if( prev_op->val == (double)'\0')
+            if( prev_op->val == lTerm)
             {
                 //reduced completely on the left
                 puts("left side completely reduced");
                 prev_op = next_op;
                 curr_level = prev_op->level;
-                if(prev_op->val==(double)'=')
-                    puts("end");
+                if(prev_op->val==rTerm && prev_op->level==1)
+                {
+                    tmp = pop_stack();
+                    Token *to_destroy = pop_stack();
+                    prev_op = pop_stack();
+                    curr_level = prev_op->level;
+                    push_stack(tmp);
+                    free_token(to_destroy);
+                    if(!--nest_level)
+                    {
+                        lTerm='\0';
+                        rTerm='=';
+                    }
+                }
                 return;
             }
             puts("further reduction");
@@ -126,7 +161,8 @@ static void parse_char(char c)
 }
 
 //const char *test="3-44*2+9/1/3+10-5=";
-const char *test="66/13+44*6-39-1005+33*7=";    //-543.923077
+//const char *test="66/13+44*6-39-1005+33*7=";    //-543.923077
+const char *test="3*(4+2*(2*3-1))+(2*(5-2)*(5-3))/4-(4*4*12/3+7-3)=";    //-23
 int main(int argc, char**argv)
 {
     for(const char *ptr=test; *ptr; ptr++)
@@ -156,6 +192,8 @@ __attribute__((constructor)) void init_parser()
     g_hash_table_insert(work_ops, GINT_TO_POINTER('*'), op_mul);
     g_hash_table_insert(work_ops, GINT_TO_POINTER('/'), op_div);
     g_hash_table_insert(work_ops, GINT_TO_POINTER('\0'), NULL);
+    g_hash_table_insert(work_ops, GINT_TO_POINTER('('), NULL);
+    g_hash_table_insert(work_ops, GINT_TO_POINTER(')'), NULL);
     null_token = new_token('\0');
     token_stack[0]=null_token;
     token_stack[1]=new_token('0');
@@ -196,7 +234,7 @@ static Token* new_token(char c)
         *out = (Token){
             .type=OP,
             .val = (double)c,
-            .level= ( strchr(OP_L1,c) ? 1 : ( strchr(OP_L2,c) ? 2 : 255)),
+            .level= ( strchr(OP_L1,c) ? 1 : ( strchr(OP_L2,c) ? 2 : ( strchr(OP_L3,c) ? 3 :255) )),
             .work=(double (*)(double, double)) g_hash_table_lookup(work_ops, GINT_TO_POINTER(c)),
         };
     }
