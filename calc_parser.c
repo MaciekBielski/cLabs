@@ -1,4 +1,5 @@
-/* glib 2.4 */
+/* An old program for parsing the input characters one by one and computing the
+ * expression. A basic example of a parser. Revisited and cleaned up, for fun */
 /* TODO:
  * [+] describe Token type,
  * [+] newToken, freeToken
