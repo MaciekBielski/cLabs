@@ -26,9 +26,9 @@
 #define SQUARE2( arg ) ({ arg*arg })
 
 //6. Stringification example
-#define FOO 888
-#define _STR( exp_me )do{ _XSTR(exp_me); }while(0)
-#define _XSTR( not_exp_me ) #not_exp_me
+#define PARSE_SZ 4
+#define FMT_PATT(width) "%"#width"u%n"
+#define FMT(arg) FMT_PATT(arg)
 
 int main(int argc, char** argv)
 {
@@ -58,8 +58,8 @@ int main(int argc, char** argv)
     //SQUARE( SQUARE(5));
     
     //6.
-    //_XSTR(FOO);    
-    //_STR(FOO);
+    FMT_PATT(PARSE_SZ)
+    FMT(PARSE_SZ)
 }
 
 

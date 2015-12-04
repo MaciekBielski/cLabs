@@ -22,4 +22,4 @@ threadCleanup: threadCleanupHandler.cpp
 
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
-	@-rm -rf hello_ncurses macros calc_parser
+	@-rm -rf hello_ncurses macros calc_parser qemu_test

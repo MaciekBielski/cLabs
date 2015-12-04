@@ -82,9 +82,21 @@ fail:
     return NULL;
 }
 
+#define PARSE_SZ 4
+#define FMT_PATT(width) "%"#width"u%n"
+#define FMT(arg) FMT_PATT(arg)
+
 int main(int argc, char** argv)
 {
-    InetSocketAddress *isa = NULL;
-    isa = inet_parse("127.0.0.1:4545");
+    //InetSocketAddress *isa = NULL;
+    //isa = inet_parse("127.0.0.1:4545");
+    char fmt[20] = {0};
+    char *data = "456";
+    snprintf(fmt, 20,"%%%1cu%%n", *data);
+    printf("fmt: %s\n", fmt);
+    char *test="12345678901234";
+    size_t ret, n;
+    sscanf(test, FMT(PARSE_SZ), &ret, &n);
+    printf("ret:%u, n: %u\n", ret, n);
     return 0;
 }
