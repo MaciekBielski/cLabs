@@ -18,8 +18,15 @@ flexThreads: flexThreads.cpp
 	g++ -Wall -o $@ $^ -pthread
 
 threadCleanup: threadCleanupHandler.cpp
-	g++ -Wall -o $@ $^ -pthread
+	g++ -std=c++11 -Wall -o $@ $^ -pthread
+
+ROOT=/opt/clang_llvm_3.9.0
+CLANG=$(ROOT)/bin/clang++
+FLAGS= -fcolor-diagnostics -std=c++14
+
+misc: misc.cpp
+	$(CLANG) $(FLAGS) $^ -o $@
 
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
-	@-rm -rf hello_ncurses macros calc_parser qemu_test
+	@-rm -rf hello_ncurses macros calc_parser qemu_test misc

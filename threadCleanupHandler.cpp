@@ -59,8 +59,9 @@ void* threadInit(void *p){
 }
 int main(){
     pthread_t threads[3];
-    int retVals[3]={11,22,33};
-    int *retTest=0;
+    int retVals[3] {11,22,33};
+    int *retTest {0};
+
     for(int i=0; i<3; i++)
         pthread_create(&threads[i], NULL, &threadInit, &retVals[i]);
 
