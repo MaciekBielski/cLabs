@@ -33,10 +33,10 @@
 int main(int argc, char** argv)
 {
     //1.
-    //  VARFOO("INFO: %s\n", "bar");
-    //  VARFOO("INFO: empty");
-    //  VARFOO2("INFO: %s\n", "bar");
-    //  VARFOO2("INFO: empty");
+    VARFOO("INFO: %s\n", "bar");
+    VARFOO("INFO: empty");
+    VARFOO2("INFO: %s\n", "bar");
+    VARFOO2("INFO: empty");
     
     //2.
     //  if(argc==1)

@@ -1,4 +1,45 @@
-Notes on C++11
+Notes on modern C++
+
+
+Rules
+--------------------------------------------------------------------------------
+1.  Avoid automatic default constructors, at least use `= default`,
+2.  Make methods `const` whenever possible,
+3.  Constructors may be `explicit`, for blocked implicit conversions,
+4.  Container class should have initializer-list constructor,
+5.  Class with virtual function should have virtual destructor,
+6.  Virtual function should be marked `override` to force the compiler check if
+    prototype matches (or if parent version is marked `final`)
+7.  Functions returning a pointer should return `unique_ptr` or `shared_ptr`
+8.  Designing a class always consider if and how it can be copied, for
+    move-only types delete copy constructor and use universal assignment
+    operator,
+9.  RAII (Resource Acquisition Is Initialization):
+    - constructor acquires resource, destructor releases,
+    - each resource has an owner in a scope and is released at the end,
+    - for (passing) owners and only for them use `owner<T*>`, `make_unique<X>`,
+      `make_shared<T>`, otherwise use classic pointers
+    - raw pointer is non-owner, no naked `new` or `delete` in application
+      code,
+    - don't mix owners and non-owners, eg. in the same container,
+    - raw pointer don't escape to enclosing scope (returns, parameters)
+    - ownership can be moved to other scope with move semantics or "smart
+      pointers",
+    - after moving out the resource object it should no longer be used in the
+      same scope (this is not checked by the compiler), this is why it should
+      be pointed by `unique_ptr`,
+    - ownership can be shared if necessary with `shared_ptr`,
+    - resource handler by default should be `move-only` type,
+11. Move semantics for rvalue references:
+    - Return objects by value if they support moving, `return x;` is implicitly
+      turned into `return move(x);`,
+    - Moving constructor has to secure subsequent destruction of `rhs`,
+    - Use 'construct & swap' for one universal assignment operator,
+    - After `auto y = move(x)`, you should no longer use `x`,
+12. Base class in a hierarchy should not be copied by default, use explicit
+    `virtual clone` function for that,
+13. Code in a declarative way
+
 
 Miscs
 --------------------------------------------------------------------------------
@@ -8,12 +49,27 @@ Miscs
   it instead of classical enums, alternatively put the enum in a separate
   namespace to avoid `static_cast` the enum to int.
 
-* `constextpr float pi = 3.14`
+* `constexpr float pi = 3.14`
   Known at the compile time. For constants initialized on runtime and never
   changed use `const`.
+
+* `array`
+  Better than built-in array, has `constexpr` size,
+
+* `array_view<T>`
+  Run-time check when using raw array `T tab[123]`, `array_view<T>{tab}` will
+  make `tab.size()` for scope-check,
+
+* not-null
+  Run-time check when a pointer cannot be nullptr: `not_null<T*> ptr`,
+
+* `bitset`, `make_pair()`, `make_tuple()`
     
 * `using distance_t = double`
-  Type aliasing, instead of `typedef`'s
+  Type aliasing, instead of `typedef`'s, useful for binding templates:
+
+        template<typename Value>
+        using String_map = Map<string,Value>;
 
 * `auto foo() -> int`
   Trailing return type syntax, even this is optional but then function has to
@@ -41,25 +97,65 @@ Miscs
     Determines the type of x at compile time. Eg. in templates, a type can
     depend on the argument template will be instantiated with.
 
-* static_assert()
-    Assertions at compile time
+* alignent
+  - get:
+    auto align = alignof(obj);
+  - set:
+    alignas(Foo) tab[1024];
 
-* initializer_list<T> &il
+* `thread-local`
+  For thread-only objects
+
+
+* `static_assert()`
+    Assertions at compile time, especially usefull in templates
+
+* `initializer_list<T> &il`
     Make your class accepting initializer list (`std::vector t[3] = {1,2,3}`)
   - With uniform initialization it takes precedence over other constructors  
   - This is not initialization_list, it only sounds similar, it uses `=`
 
-* Lambdas
 
-* Generic lambdas (named or unnamed) with `auto` arguments (impossible with
-  C++11)
+Smart pointers
+--------------------------------------------------------------------------------
+- `unique_ptr<T>`
+  unique ownership, relys on move semantics, underlying object implicitly
+  destroyed at EOS
+- `shared_ptr<T>`
+  shared ownership, rather copied than moved, underlying object destroyd when
+  last `shared_ptr` destroyed, it may outlive creating function
 
-    auto do_sum  = [](auto op1, auto op2){ return op1 + op2; };
 
-  can be also inline, `svec` is a vector<string>:
+        template <typename T>
+        unique_ptr<T> factory<T>()
+        {
+            //return unique_ptr<T> { new T{} };
+            return make_unique<T>();
+        }
+        
+        void fun()
+        {
+            auto uPtr  = factory<T>();
+            ptr->doSth();
 
-    std::accumulate(svec.begin(), svec.end(), std::string(""),
-                             [](auto op1,auto op2){ return op1+op2; } )
+            //shared_ptr<T> sPtr { new T{"foo"} };  //shortcut below
+            auto sPtr = make_shared<T>("foo");
+
+            // implicit delete uPtr;
+        }
+
+* `mem_fn`
+  Turns a method into function object, an algorithm may accept only function,
+  lambdas can be alternative
+
+        for_each( foo.begin(); foo.end(); mem_fn( &Foo::method ) );
+        // or
+        for_each( foo.begin(); foo.end(); []( Foo *f ){ f->method(); } );
+
+* `bind`
+  Used for function currying, lambdas are better. Result can be assigned to
+  `function<F>`
+
 
 Overloaded functions
 --------------------------------------------------------------------------------
@@ -76,25 +172,66 @@ Matching preference:
 
 * default params (rightmost) don't count for methods matching
 
-### Casts
 
-* void-to-int
-    void *vp = &x;
-    int *ip = static_cast<int*>(vp);
+Lambdas - needs more work
+--------------------------------------------------------------------------------
 
-* fun-to-void
+        [&]( const string& s ){ return s > outerStr };
+
+* `[&]` - caputre list, says that outer values will be used by references,
+* `[=]` - caputre list, says that outer values will be used by copies,
+* `[&x]` - only outer x will be captured, by reference
+* `[=x]` - only outer x will be captured, by copy
+* `[]` - capture nothing
+
+
+* Generic lambdas with `auto` arguments (C++14)
+
+    auto do_sum  = [](auto op1, auto op2){ return op1 + op2; };
+
+  can be also inline, `svec` is a vector<string>:
+
+    std::accumulate(svec.begin(), svec.end(), std::string(""),
+                             [](auto op1,auto op2){ return op1+op2; } )
+
+
+Named casts
+--------------------------------------------------------------------------------
+
+* Static
+  - for usual type conversions like base-class ptr to derived-class ptr or
+    void-to-int:
+
+        void *vp = &x;
+        int *ip = static_cast<int*>(vp);
+
+* Reinterpret
+  - for tricky and non-portable conversions like long-to-ptr or fun-to-void
     void funFoo(){}
-    cout << reinterpret_cast<void*>(funFoo);
+
+        cout << reinterpret_cast<void*>(funFoo);
+        auto mem = reinterpret_cast<Memory*> (0x400000);
+
+* Const
+  - for getting rid of const
+
+
+* Dynamic
+  - Check "is instance", can return `nullptr`, use it if a failure is
+    considered valid alternative
+
+        if( auto c = dynamic_cast<Circle *>( shape_ptr ) )
+          c.tellRadius();
+
+  - Also other version, but this can throw "std::bad_cast", use it if a failure
+    is considered an error
+
+        Circle &c { dynamic_cast<Circle *>( *shape_ptr )};
+
 
 
 Classes
 --------------------------------------------------------------------------------
-
-### Rules
-* avoid automatic default constructors
-* make methods const whenever possible
-* constructors may be explicit, except for implicit conversions
-* destructors should always be virtual
 
 ### Constructors
 * non-static members should get assigned with default values inside class body,
@@ -160,9 +297,17 @@ Classes
   * friend functions and classes are declared inside the class that grants an
   access, with friend class, all its methods have access to the granting class
 
+### Initializer-list constructor
+
+        Foo::Foo( std::initializer_list<Bar> lst )
+        {
+            // lst.size(), lst.begin(), lst.end()...
+        }
+
 ### Operators overloading
 * by function (may need to be friend)
-  necessary if l-operand is not user defined
+  - should be used for symetric operators,
+  - necessary if l-operand is not user defined
 
     Foo operator+(const Foo &l, const Foo &r){}     //sum operator
 
@@ -191,8 +336,8 @@ Classes
   explicitly.
 
     int i = 0x4141;
-    // char c(i); //this would silently compile and perform casting!
-    // char c{i}; //error: narrowing non-constant expression, cannot safe-check
+    // char c( i ); //this would silently compile and perform casting!
+    // char c{ i }; //error: narrowing non-constant expression, cannot safe-check
     char c{ static_cast<char>(i) };     //correct!
 
 2. casting operators
@@ -209,6 +354,69 @@ Classes
     there is a constructor `Foo(int)`, then it is implicitly converted. This
     can be switched off with `explicit` keyword - constructor will not be used
     for implicit conversions.
+
+Move semantics
+--------------------------------------------------------------------------------
+* lvalue & rvalue
+  - lvalue - everything that can give you an address of memory
+  - rvalue - everything that is not lvalue, you cannot assign to it, eg.
+    temporary object returned from a function,
+
+* The rvalue refrence refer to rvalues (temporary object). Sth declared as an
+  rvalue reference `T&& t` can be used as **rvalue or lvalue** reference.
+  - If it has a name then it will be used as lvalue,
+  - If a type does not support moving rvalue acts as lvalue,
+  - Rvalue reference refers to a temporary object that is never used later,
+  Return value is copied to a temporary object and this objects can be bind to
+  rvalue reference instead of being copied again to some other object (C++03).
+
+* Rvalues can be bind to `T&&` or `const T&`, for backward compatibility but
+  then, if the object is passed by value, we fall back to copying.
+
+* constructors:
+  - copy constructor:       T::T( const T &rhs) {};
+  - move constructor:       T::T( T&& rhs) {};
+
+* move operations:
+  - if right-hand side of an assignment is an rvalue it would be more efficient
+    to move instead of copying because **rvalue** is destroyed immediately
+    after - this destroy has to be secured (e.g. nulling pointers),
+  - overloaded 'assignment operator' and 'move constructor' have priority when
+    dealing with rvalue, the `noexcept` is important, they cannot throw
+    exceptions
+
+        T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
+            // rhs destroyed just after
+            // swap elements and make sure rhs destruction is safe
+            std::swap( tabPtr, rhs.tabPtr );
+        };
+
+        T::T& operator=(T &&rhs) noexcept {};
+
+* universal assignment operator: 'construct & swap' idiom
+  To reduce code duplication for assignment operator use one that takes an
+  argument **by value!** This value will be a copy or moved object, depends
+  on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
+
+        T::T& operator=( T byValue ) {
+            std::swap( elem, byValue.elem ); 
+            return *this;
+        }
+
+  - after 'rvalue' assignment 'rhs' should no longer be used!
+
+        auto x = move(y);
+        y.foo();            // compiler will not protest but this is bad
+
+* move-only types
+  Types that own a resource should not be copied, the ownership should only be
+  moved.
+  - point to resource with `auto res = make_unique<T>( T{} )`,
+  - if type pointed by `unique_ptr` also then it blocks copying, but when type
+    object used by value than it needs additional protection,
+  - delete the copy constructor: `T( const T& rhs) = delete;`,
+  - implement the universal 'construct & swap' assignment operator,
+
 
 
 Relationships
@@ -246,7 +454,7 @@ Inheritance
 
 - "is-a" relationship, child specifies more generic parent or shows progress
   over time
-- constructor can only invode its direct-parent constructor
+- constructor can only invoke its direct-parent constructor
 
 - public:
   - parent's public members stay public
@@ -274,7 +482,6 @@ Inheritance
       class Child : private Parent {    //all private, except for...
           public:
               using Parent:x;
-
               void parentPubFun() = delete;
       };
 
@@ -341,16 +548,18 @@ and points to `vtable` of a given class. Thanks to this, with this code:
 
     virtual void fun() = 0;
 
-- virtual functions with no body,
+- abstract function = virtual functions with no body,
 - class with abstract function becomes abstract - cannot be instantiated,
 - derived class is forced to define a body for this function or it will become
   abstract as well,
+- should contain virtual destructor
 
 ### Interface classes
-- no specific name
+- no specific name for this type of classes
 - contains only abstract functions and no members
+- should contain virtual destructor
 
-### Virtual classes - avoid doubled ancestor
+### Virtually inherited classes - avoid doubled ancestor
 Copes with the "diamond problem", when grandparent class copied twice in a
 child type and the child object will instantiate two grandparent objects.
 USUALLY this is not desired. Solution:
@@ -405,38 +614,38 @@ Templates
 
 ### template functions
 
-    template <typename T1>    //or <class T1>
-    T1 max(T1 tX, T1 tY)
-    {
-        return (tX > tY) ? tX : tY;
-    }
+        template <typename T1>    //or <class T1>
+        T1 max(T1 tX, T1 tY)
+        {
+            return (tX > tY) ? tX : tY;
+        }
 
 ### template class
 
-    template <typename T>
-    class Foo {
-        public:
-            T& operator[](int idx);
-    };
+        template <typename T>
+        class Foo {
+            public:
+                T& operator[](int idx);
+        };
 
-    template <typename T>    //each templated method needs its own declaration
-    T& Foo<T>::operator[](int idx)
-    {
-        /* function body */
-    }
+        template <typename T>    //each method needs its own declaration
+        T& Foo<T>::operator[](int idx)
+        {
+            /* function body */
+        }
 
 ### expression parameter
 Usable inside template classes, substituted by a value or pointer, not type.
 
-    template <typename T, int nSz>      //nSz is an expression parameter
-    class Buff {
-        private:
-            T buff[nSz];
-    };
+        template <typename T, int nSz>  //nSz is an expression parameter
+        class Buff {
+            private:
+                T buff[nSz];
+        };
 
 usage:
     
-    Buff<double, 5> bf;
+        Buff<double, 5> bf;
 
 This is statical creation during template instantiation.
 
@@ -444,25 +653,40 @@ This is statical creation during template instantiation.
 Template can be specialized per specific type, e.g. specific constructor and
 destructor can be created.
 
-    template <>
-    Foo<char*>::Foo(char* arg) { /**/ }
+        template <>
+        Foo<char*>::Foo(char* arg) { /**/ }
 
-    template <>
-    Foo<char*>::~Foo() { /**/ }
+        template <>
+        Foo<char*>::~Foo() { /**/ }
 
 ### type specialization
 Customized version of a template will take precedence over generic template
 
-    template <typename T>
-    class Buz { /* body */};
+        template <typename T>
+        class Buz { /* body */};
 
 specialized per-type:
 
-    template <>         //this is to indicate the template
-    class Buz<char*> { /* can be totally different body */ };
+        template <>         //this is to indicate the template
+        class Buz<char*> { /* can be totally different body */ };
 
 Body can be different, however its recommended to keep the public interface the
 same.
+
+### variadic templates
+
+        void f(){}       recursion floor
+
+        template< typename T>
+        void g(T t){ /* do something */ };
+
+        template< typename T, typename... Tail>
+        void f(T head, Tail... tail)
+        {
+            g(head);
+            f(tail...);     // at the end it will be f();
+        }
+
 
 ### explicit instantiation and files structure
 Template class and methods cannot be split in two: .hpp + .cpp in a classical
@@ -471,14 +695,67 @@ will create its own copy!
 
 Other solution - explicitly instantiate types that you need in a templates.cpp:
 
-    #include "TempType.hpp"
-    #include "TempType.cpp"
+        #include "TempType.hpp"         // template definition
+        #include "TempType.cpp"         // template methods definition
 
-    template class Foo<int>;
-    template class Foo<double>;
+        template class Foo<int>;        //explicitly instantiate template class
+        template class Foo<double>;
 
-Then, you have only one file that incudes "TempType.cpp" so no code bloat here.
-Other users need to include .hpp and link templates.o at the end;
+Then, you have ONLY ONE file that incudes "TempType.cpp" so no code bloat here.
+Other users need to include .hpp and link templates.o at the end.
+
+NOTICE: TempType.cpp should not perhaps be used by build script to create '.o'.
+
+### perfect forwarding with move semantics
+TODO
+http://thbecker.net/articles/rvalue_references/section_08.html
+
+
+Type functions: meta-programming
+-------------------------------------------------------------------------------
+
+Using information retrieved from type objects (vide QEMU TypeInfo) at compile
+time.
+
+        constexpr float f_min = numeric_limits<float>::min();
+
+Especially usefull when writing templates. Good place to use
+`static_assert<T>`. Examples:
+
+* iterator traits
+  The `sort()` function uses iterator but they may be different:
+  forward-iterator or random-access-iterator, so `sort()` is wrapped in different
+  functions, depending on the iterator type (some additional steps required for
+  forward-iterator), differentiated by the iterator tag:
+
+        template <typename Rnd>
+        void sort_wrapper(Rnd beg, Rnd end, random_access_iterator_tag)
+        { /* body */ }
+
+        template <typename Fwd>
+        void sort_wrapper(Fwd beg, Fwd end, forward_access_iterator_tag)
+        {
+            /*
+             * good example, `Fwd` itself has no field 'value_type',
+             * but `typename Fwd` does ?
+             */
+            vector<typename Fwd::value_type> v {beg, end};
+        }
+
+        //overloaded sort for generic container
+        template <typename Cnt>
+        sort( Cnt &cnt )
+        {
+            /* we need a typename, not the type object */
+            usint Iter = typename Cnt::iterator;
+            usint IterCat = typename std::iterator_traits<Iter>::iterator_category;
+
+            sort_wrapper( cnt.begin(), cnt.end(), IterCat{} );
+        }
+
+    - Nice details: each container records type of contained values that can be
+      extracted,
+
 
 
 Exceptions
@@ -517,3 +794,133 @@ STL
 ### algorithms
 - min_element, max_elemenet, find,
 - sort - not for lists, they have own .sort() method
+
+
+Concurrency
+-------------------------------------------------------------------------------
+
+### Mutex
+* ref{}, crer{} - passes reference to a template,
+* defer_lock - defer the moment of lock acquisition
+
+        mutex m,mtx1, mtx2;
+
+        void tFoo(vector<int> &v) {
+            unique_lock<mutex> lck {m};         // implicit m.lock()
+            unique_lock<mutex> defLck1 {mtx1, defer_lock};  // don't lock yet
+            unique_lock<mutex> defLck2 {mtx2, defer_lock};  // don't lock yet
+
+            lock(defLck1, defLck2);             // acquire all locks now
+
+            //work, mutex released at the EOS   // implicit m.unlock()
+        }
+
+        int main() {
+            vector<int> v1 {1,2,3};
+
+            task t1 {tFoo, ref{v1} };    // explicit reference for templates
+
+            t1.join();
+        }
+
+### Condition variables
+  - condition variable needs to be called with lock acquired and then it enters
+    `wait()` and releases the lock atomically, the lock is re-acquired again
+    when `wait()` returns,
+  - `queue<T>` is a shared resource that has to be accessed as critical section
+
+    class Msg{ /*...*/ };
+    queue<Msg> msgQueue;
+    mutex msgMtx;
+    condition_variable msgCond;
+
+        void tProducer()
+        {
+            unique_lock<mutex> lck {msgMtx};
+            msgQueue.push( Msg{} );
+            msgCond.notify_one();
+
+        }
+
+        void tConsumer()
+        {
+            unique_lock<mutex> lck {msgMtx};
+            while( msgCond.wait(msgMtx) ) {};   // wait returns 0 when woken up
+                // lock is re-acquired here
+            auto msg1 = msgQueue.front();   // example queue usage
+            lck.unlock();                   // also could be implicit perhaps
+        }
+
+### Task communication with `<future>`
+
+* `future` and `promise`: transfer value between two tasks without explicit locking
+  - producer task puts the value into `promise`
+  - consumer task gets the value from `future`
+  - `get()` can pass an exception as well
+
+        void tProducer()
+        {
+            promise<Msg> pxMsg;
+            try{
+                pxMsg.set_value(pxMsg);
+            } catch {
+                pxMsg.set_exception( current_exception() );
+            }
+        }
+
+        void tConsumer()
+        {
+            future<Msg> fxMsg;
+            try{
+                auto m = fxMsg.get();               //blocks until message arrives
+            } catch { /* handle the error */ }
+        }
+
+* `packaged_task`
+  - wrapper for a function thread
+  - simplifies connecting tasks
+  - packaged task is resources owner so it cannot be copied - explicit `move{}`
+    for a template
+
+
+        int funProducer( int &ignored ) { return 123; }      // implicitly put promises
+
+        int main()
+        {
+            using tProdType = int( int& );          // convenience
+            packaged_task<tProdType> ptProd {funProducer};
+
+            future<int> fx { ptProd.get_future(); }
+
+            int x = 888;
+            task tProd { move{ptProd}, ref{x} };    // explicit move and ref for templates
+
+            cout << fx.get() << endl;               //blocks here
+        }
+
+* `async`
+  - Simplest, no resource sharing, just independent work
+  - nb of threads decided by async
+
+    int main()
+    {
+        auto fx = async( funProducer, 888 );
+        cout << fx.get() << endl;
+    }
+
+
+Embedded
+-------------------------------------------------------------------------------
+
+### ROMmable class
+1. no base classes
+2. no constructor
+3. no private or protected members
+4. no virtual functions
+5. any contained classes have to be ROMmable as well
+6. all member functions logically should be `const`
+7. securing `uninitialized` instances creation
+  - encapsulate the ROMmable class (inner) in a private segment of outer class
+  - create private `static const` instances of inner class, as private members
+  - the outer class is not ROMmable
+

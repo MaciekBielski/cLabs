@@ -22,10 +22,10 @@ threadCleanup: threadCleanupHandler.cpp
 
 ROOT=/opt/clang_llvm_3.9.0
 CLANG=$(ROOT)/bin/clang++
-FLAGS= -fcolor-diagnostics -std=c++14
+FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
 
 misc: misc.cpp
-	$(CLANG) $(FLAGS) $^ -o $@
+	$(CLANG) $(FLAGS) -fno-elide-constructors $^ -o $@
 
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
