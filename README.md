@@ -355,6 +355,7 @@ Classes
     can be switched off with `explicit` keyword - constructor will not be used
     for implicit conversions.
 
+
 Move semantics
 --------------------------------------------------------------------------------
 * lvalue & rvalue
@@ -374,30 +375,29 @@ Move semantics
   then, if the object is passed by value, we fall back to copying.
 
 * constructors:
-  - copy constructor:       T::T( const T &rhs) {};
+  - copy constructor:       
   - move constructor:       T::T( T&& rhs) {};
 
-* move operations:
+* move operations - universal implementation:
   - if right-hand side of an assignment is an rvalue it would be more efficient
     to move instead of copying because **rvalue** is destroyed immediately
     after - this destroy has to be secured (e.g. nulling pointers),
-  - overloaded 'assignment operator' and 'move constructor' have priority when
-    dealing with rvalue, the `noexcept` is important, they cannot throw
-    exceptions
+  - 'construct & swap' idiom:
+    To reduce code duplication for assignment operator use one that takes an
+    argument **by value!** This value will be a copy or moved object, depends
+    on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
 
+        /* standard copy constructor */
+        T::T( const T &rhs) {
+        };
+
+        /* move constructor, rhs destroyed just after */
         T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
-            // rhs destroyed just after
             // swap elements and make sure rhs destruction is safe
             std::swap( tabPtr, rhs.tabPtr );
         };
 
-        T::T& operator=(T &&rhs) noexcept {};
-
-* universal assignment operator: 'construct & swap' idiom
-  To reduce code duplication for assignment operator use one that takes an
-  argument **by value!** This value will be a copy or moved object, depends
-  on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
-
+        /* universal assignment operator */
         T::T& operator=( T byValue ) {
             std::swap( elem, byValue.elem ); 
             return *this;
@@ -406,16 +406,27 @@ Move semantics
   - after 'rvalue' assignment 'rhs' should no longer be used!
 
         auto x = move(y);
-        y.foo();            // compiler will not protest but this is bad
+        y.foo();            // compiler will not protest(?) but this is bad
+
+
+Ownership
+--------------------------------------------------------------------------------
 
 * move-only types
   Types that own a resource should not be copied, the ownership should only be
   moved.
   - point to resource with `auto res = make_unique<T>( T{} )`,
-  - if type pointed by `unique_ptr` also then it blocks copying, but when type
-    object used by value than it needs additional protection,
-  - delete the copy constructor: `T( const T& rhs) = delete;`,
-  - implement the universal 'construct & swap' assignment operator,
+  - if `T t` is pointed by `unique_ptr` then copying is blocked but when `t` is
+    passed to/from the function then it needs additional protection:
+    - delete the copy constructor: `T( const T& rhs) = delete;`,
+    - implement the universal 'construct & swap' assignment operator,
+
+* any functions that don't move the ownership should use raw pointers and raw
+  references,
+
+* resource handling:
+  - create resource by `auto res = make_unique<T>();` or `factory()`
+  - consume ownership by `void sink( unique_ptr<T> res )`,
 
 
 

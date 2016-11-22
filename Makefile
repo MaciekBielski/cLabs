@@ -27,6 +27,9 @@ FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
 misc: misc.cpp
 	$(CLANG) $(FLAGS) -fno-elide-constructors $^ -o $@
 
+tidy:
+	$(ROOT)/bin/clang-tidy
+
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
 	@-rm -rf hello_ncurses macros calc_parser qemu_test misc
