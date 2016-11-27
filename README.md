@@ -17,18 +17,18 @@ Rules
 9.  RAII (Resource Acquisition Is Initialization):
     - constructor acquires resource, destructor releases,
     - each resource has an owner in a scope and is released at the end,
-    - for (passing) owners and only for them use `owner<T*>`, `make_unique<X>`,
-      `make_shared<T>`, otherwise use classic pointers
-    - raw pointer is non-owner, no naked `new` or `delete` in application
-      code,
-    - don't mix owners and non-owners, eg. in the same container,
-    - raw pointer don't escape to enclosing scope (returns, parameters)
+    - for (passing) owners and only for them use owning pointer;
+      `make_unique<X>` or `make_shared<T>`, otherwise use classic pointers
     - ownership can be moved to other scope with move semantics or "smart
       pointers",
+    - raw pointer is non-owner, no naked `new` or `delete` in application
+      code,
+    - don't mix owners and non-owners, eg. by pushing them to the same
+      container,
+    - raw pointer don't escape to enclosing scope (returns, parameters)
     - after moving out the resource object it should no longer be used in the
-      same scope (this is not checked by the compiler), this is why it should
+      same scope (this is not checked by the compiler?), this is why it should
       be pointed by `unique_ptr`,
-    - ownership can be shared if necessary with `shared_ptr`,
     - resource handler by default should be `move-only` type,
 11. Move semantics for rvalue references:
     - Return objects by value if they support moving, `return x;` is implicitly
@@ -39,6 +39,11 @@ Rules
 12. Base class in a hierarchy should not be copied by default, use explicit
     `virtual clone` function for that,
 13. Code in a declarative way
+14. Passing/returning by value:
+    - Return by value by default (elided by compiler),
+    - Pass by value in the constructor,
+    - By default pass by `const T&`, for justified optimization pass by `T&&
+      noexcept and move at the end`,
 
 
 Miscs
@@ -53,14 +58,26 @@ Miscs
   Known at the compile time. For constants initialized on runtime and never
   changed use `const`.
 
+* Special containers:
+  - `pair` and `tuple` are heterogenious
+  - `array`, `vector` and `tuple` are contiguously allocated
+  - `bitset` and `vectov<bool>` keep bits and access them via proxy objects,
+
 * `array`
-  Better than built-in array, has `constexpr` size,
+  Better than built-in array, has `constexpr` size defined at compile time and
+  can be on stack, no constructor or allocator, efficient for moving. Can be
+  seen as tuple of elements of the same type.
 
 * `array_view<T>`
   Run-time check when using raw array `T tab[123]`, `array_view<T>{tab}` will
   make `tab.size()` for scope-check,
 
-* not-null
+* `bitset` (not bit-field)
+  - Have few interesting ways of initialization, eg. from part of basic_string,
+  - `vector<bool>` is similar but has an allocator and changeable size,
+
+
+* `not_null`
   Run-time check when a pointer cannot be nullptr: `not_null<T*> ptr`,
 
 * `bitset`, `make_pair()`, `make_tuple()`
@@ -71,9 +88,23 @@ Miscs
         template<typename Value>
         using String_map = Map<string,Value>;
 
-* `auto foo() -> int`
-  Trailing return type syntax, even this is optional but then function has to
-  be defined before it is used, otherwise compiler cannot perform type-check.
+* auto
+  - use it for local variable initialization by default, it reduces refactoring
+    eg. when changing constness, it would imply moving or copying (fallback)
+    but compiler does good job with 'returned type elision',
+  - without elision moving or copying it can be expensive!!
+  - if you want to stick to a certain type put it on the right side, it will
+    also be elided, also for cast-initializations:
+        `auto a = {x}`          // track x regardless of its type
+        `auto f = widget{}`     // stick to a specific type
+        `auto pb = unique_ptr<Parent>{ make_unique<Child>() };
+                            // declarative way of telling what is going on
+  - the only exception for `auto` initialization (with assummed elision) is for
+    non-movable and non-copyable types - then declare the type on the left
+    `T t{}`
+  - auto foo() -> int`
+    Trailing return type syntax, even this is optional but then function has to
+    be defined before it is used,
 
 * Input sanitizing
   Handy methods: `cin.fail()`, `cin.clean()`, `cin.ignore()`
@@ -106,6 +137,8 @@ Miscs
 * `thread-local`
   For thread-only objects
 
+* `mutable`
+  Mutable member can be defined even in a const object!
 
 * `static_assert()`
     Assertions at compile time, especially usefull in templates
@@ -115,15 +148,38 @@ Miscs
   - With uniform initialization it takes precedence over other constructors  
   - This is not initialization_list, it only sounds similar, it uses `=`
 
+* iterators
+  The trick is that they can mimick the behaviour of an array element pointer
+  and the value is obtained in the same way by dereferencing `*it`,
+
+* `<memory>`
+  Provides interesting means of dealing with eg. uninitialized memory,
 
 Smart pointers
 --------------------------------------------------------------------------------
-- `unique_ptr<T>`
-  unique ownership, relys on move semantics, underlying object implicitly
-  destroyed at EOS
+
+Use them when they need to be modified or when dealing with ownership,
+otherwise classic pointers and references are still good. Use factories that
+produce them.
+
+- `unique_ptr<T,D>`
+  unique ownership, cannot be copied, relies on move semantics, named unique
+  pointer has to be passed by value with `move()`, underlying object is
+  destroyed at EOS by 'deleter' (default is `delete`), `up.get()` vs.
+  `up.release()`,
+
 - `shared_ptr<T>`
-  shared ownership, rather copied than moved, underlying object destroyd when
-  last `shared_ptr` destroyed, it may outlive creating function
+  shared ownership, rather copied than moved, underlying object destroyed when
+  last `shared_ptr` destroyed, it may outlive creating function, it may have
+  also allocator, not only deleter,
+  - moving retains the refcount, copying increments the refcount,
+  - has special castng functions,
+  - global or heap allocated shared pointer should be pinned locally
+    (refcount++) once before its raw reference will be sink down the
+    call-stack, otherwise refcounter might be decremented somewhere else and
+    object released:
+    * DO NOT DEREFERENCE NON-LOCAL SHARED POINTER,
+    * CALLING MEMBER FUNCTION OF A POINTED OBJECT IS ALSO DEREFERENCING,
 
 
         template <typename T>
@@ -136,13 +192,27 @@ Smart pointers
         void fun()
         {
             auto uPtr  = factory<T>();
-            ptr->doSth();
+            uPtr->doSth();
 
             //shared_ptr<T> sPtr { new T{"foo"} };  //shortcut below
             auto sPtr = make_shared<T>("foo");
 
             // implicit delete uPtr;
         }
+
+How to use:
+  - sink them by value (that retains refcount) to consume,
+  - pass by reference if you want to reseat the pointer,
+  - `shared_ptr should ` be passed by const reference in case sometimes it will
+    be copied inside (refcount++) but sometimes not, but never reseated,
+
+- `weak_ptr`
+  - Used to break loops in data structures managed by `shared_ptr`,
+  - Must be converted to `shared_ptr` by `.lock()` function before accessing
+    underlying data,
+  - May outlive last regular `shared_ptr`, this can be checked with
+    `.expired()`
+
 
 * `mem_fn`
   Turns a method into function object, an algorithm may accept only function,
@@ -173,17 +243,28 @@ Matching preference:
 * default params (rightmost) don't count for methods matching
 
 
-Lambdas - needs more work
+Lambdas
 --------------------------------------------------------------------------------
 
-        [&]( const string& s ){ return s > outerStr };
+        auto lambdaName = [&]( const string& s ) mutable { return s > outerStr };
 
-* `[&]` - caputre list, says that outer values will be used by references,
-* `[=]` - caputre list, says that outer values will be used by copies,
-* `[&x]` - only outer x will be captured, by reference
-* `[=x]` - only outer x will be captured, by copy
-* `[]` - capture nothing
+* `mutable` if changes captured elements,
+* [] - capture list to pass elements from the environment,
+  - by default lambda does not modify them,
+  - otherwise lambda has to be `mutable`,
+* () - parameters list, arguments passed during call,
 
+
+- `[a, b]`  - capture variables as they are declared,
+- `[this]`  - member lambda - other members always passed by reference
+- `[&x]`    - only outer x will be captured, by reference,
+- `[&x]`    - only outer x will be captured, by reference,
+- `[&,y,z]` - capture all by reference,
+- `[=x]`    - only outer x will be captured, by value
+- `[=,y,z]` - capture all by reference,
+
+* Capturing by value is safer when lambda may outlive the caller (eg. passed to
+  another thread),
 
 * Generic lambdas with `auto` arguments (C++14)
 
@@ -199,14 +280,13 @@ Named casts
 --------------------------------------------------------------------------------
 
 * Static
-  - for usual type conversions like base-class ptr to derived-class ptr or
-    void-to-int:
+  - for reversing implicit conversions (eg. int-to-void or derived-to-parent):
 
         void *vp = &x;
         int *ip = static_cast<int*>(vp);
 
 * Reinterpret
-  - for tricky and non-portable conversions like long-to-ptr or fun-to-void
+  - re-interpretting bit patters like long-to-ptr or fun-to-void
     void funFoo(){}
 
         cout << reinterpret_cast<void*>(funFoo);
@@ -217,6 +297,10 @@ Named casts
 
 
 * Dynamic
+  - Uses RTTI, used when conversion correctness cannot be checked by the
+    compiler - downcasting and crosscasting,
+  - casted type has to be polymorphic (have virtual functions) - pointer to
+    `type_info` is stored in `vtbl`
   - Check "is instance", can return `nullptr`, use it if a failure is
     considered valid alternative
 
@@ -228,6 +312,11 @@ Named casts
 
         Circle &c { dynamic_cast<Circle *>( *shape_ptr )};
 
+  - for 'upcasts' it is like simple assignment
+    
+        Base *basePtr = dynamic_cast<Base*>(drvPtr);
+        
+  - also `typeId' uses RTTI,
 
 
 Classes
@@ -810,6 +899,8 @@ STL
 Concurrency
 -------------------------------------------------------------------------------
 
+Threads are sharing address space.
+
 ### Mutex
 * ref{}, crer{} - passes reference to a template,
 * defer_lock - defer the moment of lock acquisition
@@ -919,6 +1010,43 @@ Concurrency
         cout << fx.get() << endl;
     }
 
+
+Visitor
+-------------------------------------------------------------------------------
+
+Main problem: double dispatch implementation, adding funX(), funY() to
+hierarchy of classes where also funX() and funY() in one class can be
+overloaded depending on argument type.
+
+Solves the problem of applying operations to the hierarchy of classes without
+overwriting all of them by using double dispatching trick.
+
+- (hierarchy) operands are derived from `Node` and have `accept()`:
+    
+        (virtual) void accept(Visitor &) override { v.accept(*this); };
+
+- operations are derived from `Visitor` type that has `accept()` defined for
+  each hierarchy type,
+
+        class Visitor {
+            public:
+                virtual void accept(SubNodeX &xn) = 0;
+                virtual void accept(SubNodeY &yn) = 0;
+        };
+
+- then, each operation is derived from `Visitor` and this way there are
+  different operations for different type of `Node` and adding new operations
+  does not require changing Nodes hierarchy,
+
+        class Op1 : public Visitor {
+                void accept(SubNodeX &xn) { /* Op1 for SubNodeX */ };
+                void accept(SubNodeY &yn) { /* Op1 for SubNodeY */ };
+        };
+
+        class Op2 : public Visitor {
+                void accept(SubNodeX &xn) { /* Op2 for SubNodeX */ };
+                void accept(SubNodeY &yn) { /* Op2 for SubNodeX */ };
+        };
 
 Embedded
 -------------------------------------------------------------------------------

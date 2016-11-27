@@ -25,7 +25,7 @@ CLANG=$(ROOT)/bin/clang++
 FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
 
 misc: misc.cpp
-	$(CLANG) $(FLAGS) -fno-elide-constructors $^ -o $@
+	$(CLANG) $(FLAGS) $^ -o $@
 
 tidy:
 	$(ROOT)/bin/clang-tidy
