@@ -155,6 +155,10 @@ Miscs
 * `<memory>`
   Provides interesting means of dealing with eg. uninitialized memory,
 
+* `call_once()`
+  To call something only once
+
+
 Smart pointers
 --------------------------------------------------------------------------------
 
@@ -899,15 +903,59 @@ STL
 Concurrency
 -------------------------------------------------------------------------------
 
-Threads are sharing address space.
+- Threads are sharing address space. Process = thread + AS + IPC,
+- Stacks are not shared between threads,
+- Beware of context binding references in lambdas passed to threads,
+- ref{}, crer{} - passes reference to a variadic template,
+
+### Atomic
+- Operation on atomic type is not interferred by other threads,
+- For types that map to a single built-in type,
+- `atomic<T>`, `atomic<T*>`
+
+        auto x = atomic{t};
+        t=x.load();
+        x.store(t);
+
+* `atomic_flag` - single-bit information, simplest spin-lock
+
+        auto af = atomic_flag{ATOMIC_FLAG_INIT};
+
+
+### Threads
+
+- constructor is a variadic template so passing a reference has to be done by
+  std::ref{x}, otherwise it will be copied,
+
+        auto t = thread {fun, ref(arg)};
+
+- default `id{}` means that thread is not joinable
+- `detach()` allows an execution thread outlive its destructor,
+- in parallel programs static variables could be replaced by
+  `static thread_local pair<const K,V>`
+
 
 ### Mutex
-* ref{}, crer{} - passes reference to a template,
-* defer_lock - defer the moment of lock acquisition
 
-        mutex m,mtx1, mtx2;
+- Acquiring a mutex means taking exclusive ownership,
+- defer_lock - defer the moment of lock acquisition
+- `.lock()` and `.unlock()` can be called explicitly for a mutex or convenience
+  wrappers can handle it,
+  - `lock_guard` and `unique_lock` are handles for an object that you can lock,
+    first one is a RAII on mutex, second the same plus additional operations,
+    eg. may defer acquisition,
+
+
+        mutex m,mtx1, mtx2, exp_mtx, lck_mtx;
 
         void tFoo(vector<int> &v) {
+            exp_mtx.lock();                     //unlock must be called
+
+            {
+                lock_guard<mutex> {lck_mtx}
+                // do sth that needs lock
+            }
+
             unique_lock<mutex> lck {m};         // implicit m.lock()
             unique_lock<mutex> defLck1 {mtx1, defer_lock};  // don't lock yet
             unique_lock<mutex> defLck2 {mtx2, defer_lock};  // don't lock yet
@@ -915,6 +963,7 @@ Threads are sharing address space.
             lock(defLck1, defLck2);             // acquire all locks now
 
             //work, mutex released at the EOS   // implicit m.unlock()
+            exp_mtx.unlock();
         }
 
         int main() {

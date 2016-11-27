@@ -27,6 +27,9 @@ FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
 misc: misc.cpp
 	$(CLANG) $(FLAGS) $^ -o $@
 
+threads: threads.cpp
+	$(CLANG) $(FLAGS) $^ -lpthread -o $@
+
 tidy:
 	$(ROOT)/bin/clang-tidy
 
