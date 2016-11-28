@@ -265,7 +265,7 @@ Lambdas
 - `[&x]`    - only outer x will be captured, by reference,
 - `[&,y,z]` - capture all by reference,
 - `[=x]`    - only outer x will be captured, by value
-- `[=,y,z]` - capture all by reference,
+- `[=,y,z]` - capture all by value,
 
 * Capturing by value is safer when lambda may outlive the caller (eg. passed to
   another thread),
@@ -974,11 +974,13 @@ Concurrency
             t1.join();
         }
 
+
 ### Condition variables
-  - condition variable needs to be called with lock acquired and then it enters
-    `wait()` and releases the lock atomically, the lock is re-acquired again
-    when `wait()` returns,
-  - `queue<T>` is a shared resource that has to be accessed as critical section
+- has to be used with `unique_lock` instead of `lock_guard`
+- condition variable needs to be called with lock acquired and then it enters
+  `wait()` and releases the lock atomically, the lock is re-acquired again when
+  `wait()` returns,
+- `queue<T>` is a shared resource that has to be accessed as critical section
 
     class Msg{ /*...*/ };
     queue<Msg> msgQueue;
@@ -1002,16 +1004,20 @@ Concurrency
             lck.unlock();                   // also could be implicit perhaps
         }
 
-### Task communication with `<future>`
+- condition variable any is an alternative that can use any lockable object,
+  not only mutex, 
 
-* `future` and `promise`: transfer value between two tasks without explicit locking
-  - producer task puts the value into `promise`
-  - consumer task gets the value from `future`
-  - `get()` can pass an exception as well
+
+### Task-based model
+- `packaged_task<F>` gets callable object of type `F`
+- `promise<T>` object into which produced result is put,
+- `future<T>` object from which the result is moved,
+- `shared_future<T>` object from which the result can be read multiple times,
+- no explicit locking,
 
         void tProducer()
         {
-            promise<Msg> pxMsg;
+            auto pxMsg = promise<Msg>;
             try{
                 pxMsg.set_value(pxMsg);
             } catch {
@@ -1096,6 +1102,7 @@ overwriting all of them by using double dispatching trick.
                 void accept(SubNodeX &xn) { /* Op2 for SubNodeX */ };
                 void accept(SubNodeY &yn) { /* Op2 for SubNodeX */ };
         };
+
 
 Embedded
 -------------------------------------------------------------------------------
