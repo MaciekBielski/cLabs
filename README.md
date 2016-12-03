@@ -952,7 +952,7 @@ Concurrency
             exp_mtx.lock();                     //unlock must be called
 
             {
-                lock_guard<mutex> {lck_mtx}
+                lock_guard<mutex> foo {lck_mtx}
                 // do sth that needs lock
             }
 
@@ -1035,6 +1035,8 @@ Concurrency
 
 * `packaged_task`
   - wrapper for a function thread
+  - by itself does not create separate thread,
+  - has to return each time, this is not to express coroutine's behavior,
   - simplifies connecting tasks
   - packaged task is resources owner so it cannot be copied - explicit `move{}`
     for a template
