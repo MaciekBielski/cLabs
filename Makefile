@@ -3,7 +3,7 @@ INC=$(shell pkg-config --cflags glib-2.0)
 LIBS=$(shell pkg-config --libs glib-2.0)
 
 %: %.c
-	${CC} -g -std=c99 -o $@ $< -lncurses
+	${CC} -g -std=c99 -o $@ $< -lncurses -lm
 
 qemu_test: qemu_test.c
 	${CC} ${INC} -g -std=c99 -o $@ $< ${LIBS}
@@ -36,3 +36,7 @@ tidy:
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
 	@-rm -rf hello_ncurses macros calc_parser qemu_test misc
+
+gdb:
+	cgdb -dgdb -- -q
+

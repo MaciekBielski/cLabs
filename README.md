@@ -484,7 +484,9 @@ Move semantics
         T::T( const T &rhs) {
         };
 
-        /* move constructor, rhs destroyed just after */
+        /* move constructor, initialization list setups current object
+         * that will be swapped with rhs - so it is zeroized
+         */
         T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
             // swap elements and make sure rhs destruction is safe
             std::swap( tabPtr, rhs.tabPtr );

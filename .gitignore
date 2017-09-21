@@ -1,15 +1,19 @@
 #Ignore all
-*
-
-#Ignore all with extensions
 *.*
-*.swp
-*.swo
+*
+#Ignore all with extensions
 
 #Except for
 !README.md
+!EUPLv1_2.txt
 !.gitignore
 !*.c
+!*.cpp
 !*.h
+!*.hpp
 ![Mm]akefile
+!sorting/
+!sorting/*.c
+!sorting/*.h
+!sorting/[Mm]akefile
 
