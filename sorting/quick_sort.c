@@ -37,10 +37,11 @@ static int32_t *pivot(int32_t *arr, size_t len)
 	}
 
 pivot_out:
-	printf("\t\tpivot = %u\n", *out);
+	printf("\t\tpivot = %d\n", *out);
 	return out;
 }
 
+/* swaps values indicated by pointers without moving pointers */
 // TODO: const pointers
 static inline void swap(int32_t *p, int32_t *q)
 {
@@ -75,18 +76,18 @@ static void arrange(int32_t **piv, int32_t *arr, size_t len)
 			if (*lh>**piv)	//hit
 				break;
 		}
-		printf("\t lh stopped at: %u\n", *lh);
+		printf("\t lh stopped at: %d\n", *lh);
 		/* decrement right side until lower or equal found */
 		while (lh<rh) {
 			--rh;
 			if (*rh<=**piv)	//hit
 				break;
 		}
-		printf("\t rh stopped at: %u\n", *rh);
+		printf("\t rh stopped at: %d\n", *rh);
 
 		if (lh<rh) {
 			swap(lh, rh);
-			printf("\t swapped: %u and %u\n", *lh, *rh);
+			printf("\t swapped: %d and %d\n", *lh, *rh);
 		}
 	}
 	/*
@@ -120,20 +121,22 @@ static inline size_t find_start(size_t *reg, size_t min, size_t max) {
 }
 
 /* find first non-0 in registry (stop pivot) */
-static size_t find_end(size_t *reg, size_t min, size_t max) {
+static size_t find_end(size_t *reg, size_t min, size_t max)
+{
 	size_t off;
 
 	if (min>=max)
 		return max;
 
-	for(off=min; off<max; ++off)
-		if(0 != *(reg+off))
+	for (off=min; off<max; ++off)
+		if (0 != *(reg+off))
 			break;
 
 	return off;
 }
 
-static void print_array(uint32_t *arr, size_t len, size_t piv) {
+static void print_array(int32_t *arr, size_t len, size_t piv)
+{
 	for (int i = 0; i < len; ++i)
 		if (i==piv)
 			printf("(%d) ", arr[i]);
@@ -142,9 +145,10 @@ static void print_array(uint32_t *arr, size_t len, size_t piv) {
 	puts("");
 }
 
-static void print_reg(size_t *arr, size_t len) {
+static void print_reg(size_t *arr, size_t len)
+{
 	for (int i = 0; i < len; ++i)
-		printf(" %lu  ", arr[i]);
+		printf(" %ld  ", arr[i]);
 	puts("");
 }
 
@@ -164,7 +168,7 @@ static void quick_sort(int32_t *arr, size_t len)
 
 	for (size_t i = 1; start<len; ++i) {
 		while (1) {
-			print_reg(ppos, 14);
+			print_reg(ppos, len);
 			/* find exclusive end */
 			end = find_end(ppos, start, len);
 			printf("start: %lu, end: %lu\n", start, end);
@@ -176,7 +180,7 @@ static void quick_sort(int32_t *arr, size_t len)
 
 			p = pivot(arr+start, end-start);
 			arrange(&p, arr+start, end-start);
-			print_array(arr, 14, p-arr);
+			print_array(arr, len, p-arr);
 			/* mark the pivot in registry */
 			ppos[p-arr]	= i+1;
 
@@ -197,13 +201,13 @@ int32_t main()
 	int32_t input2[] = {10, 10, 10, 10, 10};
 	int32_t input3[] = {9, -8, 7, -6, 5, -4, 3, -2, 1};
 
-	print_array(input, 14, 14);
-	quick_sort(input, 14);
-	print_array(input, 14, 14);
+	// print_array(input, 14, 14);
+	// quick_sort(input, 14);
+	// print_array(input, 14, 14);
 
-	print_array(input2, 5, 5);
-	quick_sort(input2, 5);
-	print_array(input2, 5, 5);
+	// print_array(input2, 5, 5);
+	// quick_sort(input2, 5);
+	// print_array(input2, 5, 5);
 
 	print_array(input3, 9, 9);
 	quick_sort(input3, 9);
