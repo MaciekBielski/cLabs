@@ -1,8 +1,16 @@
+/* Code borrowe from QEMU */
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <glib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/mman.h>
+
+extern int errno;
 
 /* testing elements of QEMU code */
 typedef struct InetSocketAddress
@@ -98,5 +106,20 @@ int main(int argc, char** argv)
     size_t ret, n;
     sscanf(test, FMT(PARSE_SZ), &ret, &n);
     printf("ret:%u, n: %u\n", ret, n);
+
+	/* madvise testing */
+	long page_sz = sysconf(_SC_PAGESIZE);
+	void *ptr = calloc(1, page_sz);
+
+	if (!ptr)
+		perror(strerror(errno));
+
+	if (posix_madvise(ptr, page_sz, POSIX_MADV_DONTNEED))
+		perror("madivise failed\n");
+
+	memset(ptr, 0xac, page_sz);
+
+	free(ptr);
+
     return 0;
 }

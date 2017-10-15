@@ -11,7 +11,7 @@
  * It could be created a static thread function and passed to pthread_create
  * together with a particular instance of a class as an parameter but this
  * approach is limited. If the class needs to be entered from many places and
- * should spawn a thread, it could be done by a static function. Moreover, it 
+ * should spawn a thread, it could be done by a static function. Moreover, it
  * has to be known which function is about to be run at a compile time.
  *
  * Instead, there is one STATIC function threadMaker as a thread function. It
@@ -37,8 +37,8 @@ class Example
 {
     public:
         Example()
-        { 
-            for(int k=0; k<10; t[k++]='x'); 
+        {
+            for(int k=0; k<10; t[k++]='x');
             t[10]='\0';
         };
         char t[11];
@@ -49,7 +49,7 @@ class Example
          * and returns void. "()" has higher priority than "*".
          * damn c++
          */
-        void (Example::*threadFunProvider())(int){ 
+        void (Example::*threadFunProvider())(int){
             /* could return pointer to different function, of the same type
              * depending on calling instance for example. */
             return &Example::workOnArray;
@@ -71,8 +71,8 @@ struct ThreadData
 void* Example::threadMaker(void* opaque)
 {
     /* run at the beginning of a thread */
-    ThreadData *td = static_cast<ThreadData*>(opaque); 
-    //setitimer(ITIMER_PROF,td->it,NULL); 
+    ThreadData *td = static_cast<ThreadData*>(opaque);
+    //setitimer(ITIMER_PROF,td->it,NULL);
     /* pointer to an instance of a class */
     Example *e = td->e;
     //and pointer to a function inside of that class

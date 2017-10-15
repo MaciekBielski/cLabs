@@ -6,7 +6,7 @@ LIBS=$(shell pkg-config --libs glib-2.0)
 	${CC} -g -std=c99 -o $@ $< -lncurses -lm
 
 qemu_test: qemu_test.c
-	${CC} ${INC} -g -std=c99 -o $@ $< ${LIBS}
+	${CC} -D_POSIX_C_SOURCE=200112L ${INC} -g -std=c99 -o $@ $< ${LIBS}
 
 calc_parser: calc_parser.c
 	${CC} ${INC} -g -std=c99 -o $@ $< ${LIBS}
