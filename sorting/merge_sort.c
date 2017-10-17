@@ -220,7 +220,7 @@ static void merge(list_head *lh, list_head *rh, list_head *next_l, void *last_r)
  */
 static void merge_sort(list_head *head, const size_t len)
 {
-	bool binval[32] = {0};
+	bool binval[32] = {0}, has_leftovers = false;
 	uint8_t msb_pos;
 	list_head out = *head;
 
@@ -257,9 +257,12 @@ static void merge_sort(list_head *head, const size_t len)
 				out.next = l_link.next;	// out.next -> start of the main list
 			print_list(&out);
 		}
-		/* deal with leftovers, merge them with last merged sublist */
-		// TODO: this condition is wrong!
-		if (binval[p]) {
+		/*
+		 * deal with leftovers, merge them with last merged sublist, once they
+		 * are detected each next iteration needs to merge them
+		 */
+		if (has_leftovers || binval[p]) {
+			has_leftovers = true;
 			/*
 			 * there will be a leftovers list of max order in_order-1,
 			 * NULL-terminated
@@ -282,15 +285,19 @@ static void merge_sort(list_head *head, const size_t len)
 int main(int argc, char *argv[])
 {
 
-	// int32_t input1[] = {10, 90, 50, 40, 70, 10, 30, 80, 80, 30, 90, 40, 50, 70};
-	int32_t input1[] = {90, 10, 50, 40, 20};
+	int32_t input1[] = {10, 90, 50, 40, 70, 10, 30, 80, 80, 30, 90, 40, 50, 70};
+	// int32_t input1[] = {90, 10, 50, 40, 20};
 	int32_t input2[] = {10, 10, 10, 10, 10};
 	int32_t input3[] = {9, -8, 7, -6, 5, -4, 3, -2, 1};
 
-	list_head *items1 = items_list(input1, 5);
+	list_head *items1 = items_list(input1, 14);
 	print_list(items1);
-	merge_sort(items1, 5);
+	merge_sort(items1, 14);
 	print_list(items1);
 
+	list_head *items3 = items_list(input3, 9);
+	print_list(items3);
+	merge_sort(items3, 9);
+	print_list(items3);
 	return 0;
 }
