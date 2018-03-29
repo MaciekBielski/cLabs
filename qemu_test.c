@@ -94,32 +94,41 @@ fail:
 #define FMT_PATT(width) "%"#width"u%n"
 #define FMT(arg) FMT_PATT(arg)
 
+#define lt_ten(val) ({          \
+			((val)<10) ? 1 : 0; \
+		})
+
 int main(int argc, char** argv)
 {
     //InetSocketAddress *isa = NULL;
     //isa = inet_parse("127.0.0.1:4545");
-    char fmt[20] = {0};
-    char *data = "456";
-    snprintf(fmt, 20,"%%%1cu%%n", *data);
-    printf("fmt: %s\n", fmt);
-    char *test="12345678901234";
-    size_t ret, n;
-    sscanf(test, FMT(PARSE_SZ), &ret, &n);
-    printf("ret:%u, n: %u\n", ret, n);
+    // char fmt[20] = {0};
+    // char *data = "456";
+    // snprintf(fmt, 20,"%%%1cu%%n", *data);
+    // printf("fmt: %s\n", fmt);
+    // char *test="12345678901234";
+    // size_t ret, n;
+    // sscanf(test, FMT(PARSE_SZ), &ret, &n);
+    // printf("ret:%u, n: %u\n", ret, n);
 
-	/* madvise testing */
-	long page_sz = sysconf(_SC_PAGESIZE);
-	void *ptr = calloc(1, page_sz);
+	// /* madvise testing */
+	// long page_sz = sysconf(_SC_PAGESIZE);
+	// void *ptr = calloc(1, page_sz);
 
-	if (!ptr)
-		perror(strerror(errno));
+	// if (!ptr)
+		// perror(strerror(errno));
 
-	if (posix_madvise(ptr, page_sz, POSIX_MADV_DONTNEED))
-		perror("madivise failed\n");
+	// if (posix_madvise(ptr, page_sz, POSIX_MADV_DONTNEED))
+		// perror("madivise failed\n");
 
-	memset(ptr, 0xac, page_sz);
+	// memset(ptr, 0xac, page_sz);
 
-	free(ptr);
+	// free(ptr);
+
+	uint8_t		x = 9;
+	fprintf(stderr, "1) %s\n", lt_ten(x++) ? "LT 10" : "GE 10");
+	fprintf(stderr, "2) %s\n", lt_ten(x++) ? "LT 10" : "GE 10");
+
 
     return 0;
 }

@@ -20,6 +20,9 @@ flexThreads: flexThreads.cpp
 threadCleanup: threadCleanupHandler.cpp
 	g++ -std=c++11 -Wall -o $@ $^ -pthread
 
+shm-posix-producer-orig: shm-posix-producer-orig.c
+	${CC} -g -o $@ $< -lrt
+
 ROOT=/opt/clang_llvm_3.9.0
 CLANG=$(ROOT)/bin/clang++
 FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
