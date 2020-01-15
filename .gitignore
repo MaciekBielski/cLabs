@@ -16,4 +16,11 @@
 !sorting/*.c
 !sorting/*.h
 !sorting/[Mm]akefile
+!hello_pro/
+!hello_pro/src
+!hello_pro/**.cpp
+!hello_pro/include/
+!hello_pro/include/**.hpp
+!hello_pro/CMakeLists.txt
+hello_pro/Makefile
 
