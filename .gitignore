@@ -8,8 +8,10 @@
 !EUPLv1_2.txt
 !.gitignore
 !*.c
+!*.cc
 !*.cpp
 !*.h
+!*.hh
 !*.hpp
 ![Mm]akefile
 !sorting/
@@ -18,9 +20,9 @@
 !sorting/[Mm]akefile
 !hello_pro/
 !hello_pro/src
-!hello_pro/**.cpp
+!hello_pro/**.cc
 !hello_pro/include/
-!hello_pro/include/**.hpp
+!hello_pro/include/**.hh
 !hello_pro/CMakeLists.txt
 hello_pro/Makefile
 

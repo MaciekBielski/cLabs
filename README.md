@@ -1,13 +1,23 @@
 Notes on modern C++
 
+ TODO:
+* smart pointers
+* copy and move
+* lambdas
+* typeid
+* casts: dynamic_cast, static_cast, reinterpret_cast, const_cast
+* alignof
+* noexcept
+* explicit
 
-Rules
+
+1. Rules
 --------------------------------------------------------------------------------
+
 1.  Avoid automatic default constructors, at least use `= default`,
 2.  Make methods `const` whenever possible,
 3.  Constructors may be `explicit`, for blocked implicit conversions,
 4.  Container class should have initializer-list constructor,
-5.  Class with virtual function should have virtual destructor,
 6.  Virtual function should be marked `override` to force the compiler check if
     prototype matches (or if parent version is marked `final`)
 7.  Functions returning a pointer should return `unique_ptr` or `shared_ptr`
@@ -46,17 +56,56 @@ Rules
       noexcept and move at the end`,
 
 
-Miscs
+2. Miscs
 --------------------------------------------------------------------------------
 
-* `enum class`
-  Enums are not treated as integers but distinct types, more type-safety. Use
-  it instead of classical enums, alternatively put the enum in a separate
-  namespace to avoid `static_cast` the enum to int.
+* `NULL` vs. `nullptr`
+    First is integer, second is pointer
 
-* `constexpr float pi = 3.14`
-  Known at the compile time. For constants initialized on runtime and never
-  changed use `const`.
+* Initialization from different type: `{}` vs. `=`
+    - Non-auto: `=` makes narrowing conversion (not always desired), `{}`
+      returns an error if type does not match
+    - Auto: use `=`
+    Use auto when not needed to be specific (precision, readability)
+
+        auto v {1,2,3};     // NOTE: v is initializer_list<int>
+
+* Variables: `const` vs. `constexpr`
+    - `const`: value of the variable won't be modified
+    - `constexpr`: constant evaluated at compile time
+        - `case X:` rules have to be `constexpr`
+            - vide: enum class logic operators
+            - `const` initialized with constant expresion serves as `constexpr`
+        - functions that only read an object can be `constexpr`
+        - addresses (pointers) are assigned by the linker and sometimes not
+          known at compile-time, otherwise can also be `constexpr`
+
+* __Lvalue references__ cannot be assigned to a non-const temporary
+    - Same for function arguments
+    - Such temporary lives until the end of reference's scope
+        
+        Foo &f {"Temporary"};               // error!
+        const Foo &f {"Temporary"}          // OK
+
+* __Rvalue references__ refers to temporary object which the user can modify
+    - Hint that the object will never be used again
+        - Copying can be replaced with move
+    - Functions return rvalues
+    - Const rvalue references make no sense
+    - Lvalue reference can be cast to rvalue reference by `move()`
+        - a.k.a `static_cast<T&&>(T t)`
+    - Reference collapse: When mixed together (`using`), lvalue reference
+      always wins
+
+* `enum class`
+    Strongly typed representation of a set of values. Same names between
+    different enum classes are not colliding (as with traditional enums, that
+    should have a dedicated namespace). Allowed operators overloading etc.
+
+* Raw character string, usefull in regex
+    
+        string s = R"(foo\w)";
+        string s = R"--(contains usual terminator )")--";
 
 * Special containers:
   - `pair` and `tuple` are heterogenious
@@ -82,9 +131,7 @@ Miscs
 
 * `bitset`, `make_pair()`, `make_tuple()`
     
-* `using distance_t = double`
-  Type aliasing, instead of `typedef`'s, useful for binding templates:
-
+* Aliases
         template<typename Value>
         using String_map = Map<string,Value>;
 
@@ -118,8 +165,12 @@ Miscs
     delete[] txt;
 
 * Foreach
-    for( auto &v : val){}
-    for( const auto &v : val){}
+
+        for( auto &v : val){}
+        for( const auto &v : val){}
+
+    - uses `val.begin()` and `val.end()` or `begin(val)` and `end(val)`
+        - you can declare your own in the enclosing scope for better control
 
 * Function pointers
     using FunPtr = std::function<Foo(const Foo &a, const Foo &b)>;
@@ -146,7 +197,7 @@ Miscs
 * `initializer_list<T> &il`
     Make your class accepting initializer list (`std::vector t[3] = {1,2,3}`)
   - With uniform initialization it takes precedence over other constructors  
-  - This is not initialization_list, it only sounds similar, it uses `=`
+  - This is NOT initialization_list, it only sounds similar, it uses `=`
 
 * iterators
   The trick is that they can mimick the behaviour of an array element pointer
@@ -159,7 +210,241 @@ Miscs
   To call something only once
 
 
+Virtual functions
+--------------------------------------------------------------------------------
+
+* `const` methods do not modify the object (put it wherever possible)
+
+* virtual/non-virtual method: specifies from where we start looking for the
+  implementation (for pointers and references only)
+    - non-virtual:
+        - select CLASS according to the type of __pointer/reference__,
+            - if METHOD not not implemented:
+                - change CLASS to the direct parent and try again
+            - if METHOD is implemented:
+                - set `this` to the current CLASS
+    - `virtual`:
+        - select CLASS according to the type of __pointed object__,
+            - if METHOD not not implemented:
+                - change CLASS to the direct parent and try again
+            - if METHOD is implemented:
+                - set `this` to the current CLASS
+    - anyway, in both cases the type of __pointer/reference__ has to have such
+      function declared at least,
+* use `override` to indicate that you redefine a virtual function
+    - returns error if function is not virtual as expected
+* enough to mark only the oldest parent method `virtual`
+    - mark all to be more explicit
+* __pure virtual__ must be redefined (makes a class __abstract__)
+        virtual repr() const = 0;               // pure virtual
+* a class with virtual function should have virtual destructor
+* `final` ends __virtual hierarchy__,
+    - cannot be overwritten by derivative types
+
+* __covariant return type__: prototypes (and "constness") of original and
+  override functions have to match with one exception; if `orig_meth()` returns
+  pointer/reference to `BaseX` then `deriv_meth()` may return pointer/reference
+  to `DerivX`
+
+
+Copy and move
+--------------------------------------------------------------------------------
+
+        Foo(const Foo &f)                       // copy constructor
+        Foo& operator=(const Vector &f)         // copy assignment
+
+        Foo(Foo &&f)                            // move constructor, has rvalue
+        Foo& operator=(Foo &&f)                 // move assignment, has rvalue
+
+* Usually default __copy__ and __move__ in a hierarchy is a disaster. Base
+  class knows nothing about derived class fields. Mute defaults with `=delete`
+  to avoid inadvertent errors.
+    - `delete` is not to mute virtual function overriding as `final` (the
+      latter affects __vtable__)
+* Always explicitly define a destructor. __move__ is not implicitly defined
+  when the class has an explicit destructor.
+
+* The compiler uses __move constructor__ at:
+    - Returning value from the function
+* When ambiguous, it can be enforced with `std::move`
+
+* After a __move__, the source object should be ready for destruction
+
+* `const` fields have to be set from initialization list
+
+        Foo(): memArr{1,2,3} { /*constructor body*/ }
+
+* `std::initializer_list<T>` constructor
+
+        Foo::Foo(std::initializer_list<Bar> lst):
+            arr{new char[lst.size()]},
+            sz{lst.size()}
+        { /* lst.begin(), lst.end()... */ }
+
+
+Functors and lambda expressions
+--------------------------------------------------------------------------------
+
+        [&](int x){ return x%outer; }
+
+* Syntax sugar, a __functor__ is generated, that is a class with `operator()`
+  defined as the lambda function body
+    - `[&]` => local variables are captured by reference
+    - `[]` => nothing is captured
+    - `[&y]` => only `y` is captured
+    - `[=y]` => capture `y` by value
+
+
 Smart pointers
+--------------------------------------------------------------------------------
+* `unique_ptr<Foo>`
+    - Destroys the inner object when exiting a scope and not moved
+    - When returned, __moves__ the ownership out of object-producing function
+    - `std::make_unique<T>()` constructs an object and returns `unique_ptr<T>`
+      at once
+ 
+
+* `shared_ptr<Foo>`
+    - Less predictable lifetime, object destructor called when the last copy of
+      the pointer gets out-of-scope
+    - Still a pointer, data-races possible
+    - Use `std::make_shared<T>()`
+
+
+
+
+
+
+
+### Late/dynamic binding
+It is not known at compile time which function will be called. Extra
+indirection step required to jump to an address, where the function addres is
+stored. Cases:
+- function pointers
+- virtual functions
+
+Every class, that uses virtual functions, has its own 'vtable', which contains
+a single entry for each virtual function that can be called by the object of
+this class. The entry is a pointer to most-derived version of a function.
+
+Then, a base class has a `*_vptr` pointer. This pointer is actually inherited
+by derived classes which does the trick. It is set during object instantiation
+and points to `vtable` of a given class. Thanks to this, with this code:
+
+    Child c;                //_vptr set to vtable_Child
+    Parent &p = c;          //_vptr was part of Parent,
+                            //still points to vtable_Child
+### Constructors
+* non-static members should get assigned with default values inside class body,
+  but still default constructor has to be defined
+* construction order: initalization list, contained objects, current object
+
+* copy-constructor vs. assignment operator
+  The difference is important e.g. in case of dealing with objects that have
+  heap-allocated memory.
+  - Copy constructor initializes an object, it is used:
+    1. at initialization from another object
+    2. when passing/returning to/from a function BY VALUE
+    3. can be made private to prevent copying
+  - Assignment operator replaces existing object
+    - returns `*this`
+    - Self assignment needs to be detected!
+
+        if (this == &input) { return *this; }
+
+* constructor elision:
+  Foo(Foo(3,1)) can be optimized by the compilerto Foo(3,1)
+
+* constructor delegation: specific constructor call more generic one, only in
+  its initalization list!!! (C++11)
+
+* any method can be disabled by 'delete' to prevent conversion from some
+  specific type
+
+    Foo(char) = delete;
+
+  - or allow only specific type:
+
+    class Foo
+    {
+        Foo(long long); // Can create Foo() with a long long
+        template<typename T> Foo(T) = delete;
+            //But can't create it with
+            //anything else that potentially could be casted to long long
+    };
+
+### Misc
+* chaining objects
+
+    Foo& fun{ /* body */; return *this }
+
+* const object can call only 'const' methods, declared as below:
+    
+    int fun() const;
+
+* static members are associated with class, not instances, they have to be
+  explicitly defined outside of the class.
+  - only members of type `static const int` can be initialized directly inside
+    the class body
+  - if private, can be accessed by static methods (or normal methods but this
+    requires an instance)
+  - static methods can ONLY access static members
+
+  * friend functions and classes are declared inside the class that grants an
+  access, with friend class, all its methods have access to the granting class
+
+### Operators overloading
+* by function (may need to be friend)
+  - should be used for symetric operators,
+  - necessary if l-operand is not user defined
+
+    Foo operator+(const Foo &l, const Foo &r){}     //sum operator
+
+* by method
+  by design necessary for '=', '[]', '()', '->' 
+
+    Foo Foo::operator-() const{}                    //unary operator '-x'
+
+* postfix vs. prefix
+  dummy operator to differentiate, non-const
+    
+    operator++();       //prefix version '++x'
+    operator++(int);    //postfix version 'x++' - more expensive
+
+* operator[]:
+  WARNING! don't call it on 'Foo*' - this does not work as in C
+* operator():
+  defines both type and number of arguments, used for functors implementing -
+  we can have separate objects of the same function, not possible with global
+  function,
+
+### User-defined conversions
+
+1. narrowing
+  Uniform initialization prevents narrowing, which should be expressed
+  explicitly.
+
+    int i = 0x4141;
+    // char c( i ); //this would silently compile and perform casting!
+    // char c{ i }; //error: narrowing non-constant expression, cannot safe-check
+    char c{ static_cast<char>(i) };     //correct!
+
+2. casting operators
+  have no returned type,
+
+    operator int() { /* body */ }
+  //also
+    operator Bar() { /* body */ }
+  //now possible e.g.:
+    int c = static_cast<int>( fooObj );
+
+3. converting constructors:
+  - implicit conversion: when a function expects `Foo`, and gets `int`, but
+    there is a constructor `Foo(int)`, then it is implicitly converted. This
+    can be switched off with `explicit` keyword - constructor will not be used
+    for implicit conversions.
+
+3. Smart pointers
 --------------------------------------------------------------------------------
 
 Use them when they need to be modified or when dealing with ownership,
@@ -231,7 +516,7 @@ How to use:
   `function<F>`
 
 
-Overloaded functions
+4. Overloaded functions
 --------------------------------------------------------------------------------
 
 Matching preference:
@@ -247,7 +532,7 @@ Matching preference:
 * default params (rightmost) don't count for methods matching
 
 
-Lambdas
+5. Lambdas
 --------------------------------------------------------------------------------
 
         auto lambdaName = [&]( const string& s ) mutable { return s > outerStr };
@@ -280,7 +565,7 @@ Lambdas
                              [](auto op1,auto op2){ return op1+op2; } )
 
 
-Named casts
+6. Named casts
 --------------------------------------------------------------------------------
 
 * Static
@@ -323,133 +608,7 @@ Named casts
   - also `typeId' uses RTTI,
 
 
-Classes
---------------------------------------------------------------------------------
-
-### Constructors
-* non-static members should get assigned with default values inside class body,
-  but still default constructor has to be defined
-* construction order: initalization list, contained objects, current object
-* const members have to be set from initialization list
-
-    Foo():
-        memArr{1,2,3}
-    { /*constructor body*/ }
-
-* copy-constructor vs. assignment operator
-  The difference is important e.g. in case of dealing with objects that have
-  heap-allocated memory.
-  - Copy constructor initializes an object, it is used:
-    1. at initialization from another object
-    2. when passing/returning to/from a function BY VALUE
-    3. can be made private to prevent copying
-  - Assignment operator replaces existing object
-    - returns `*this`
-    - Self assignment needs to be detected!
-
-        if (this == &input) { return *this; }
-
-* constructor elision:
-  Foo(Foo(3,1)) can be optimized by the compilerto Foo(3,1)
-
-* constructor delegation: specific constructor call more generic one, only in
-  its initalization list!!! (C++11)
-
-* any method can be disabled by 'delete' to prevent conversion from some
-  specific type
-
-    Foo(char) = delete;
-
-  - or allow only specific type:
-
-    class Foo
-    {
-        Foo(long long); // Can create Foo() with a long long
-        template<typename T> Foo(T) = delete;
-            //But can't create it with
-            //anything else that potentially could be casted to long long
-    };
-
-### Misc
-* chaining objects
-
-    Foo& fun{ /* body */; return *this }
-
-* const object can call only 'const' methods, declared as below:
-    
-    int fun() const;
-
-* static members are associated with class, not instances, they have to be
-  explicitly defined outside of the class.
-  - only members of type `static const int` can be initialized directly inside
-    the class body
-  - if private, can be accessed by static methods (or normal methods but this
-    requires an instance)
-  - static methods can ONLY access static members
-
-  * friend functions and classes are declared inside the class that grants an
-  access, with friend class, all its methods have access to the granting class
-
-### Initializer-list constructor
-
-        Foo::Foo( std::initializer_list<Bar> lst )
-        {
-            // lst.size(), lst.begin(), lst.end()...
-        }
-
-### Operators overloading
-* by function (may need to be friend)
-  - should be used for symetric operators,
-  - necessary if l-operand is not user defined
-
-    Foo operator+(const Foo &l, const Foo &r){}     //sum operator
-
-* by method
-  by design necessary for '=', '[]', '()', '->' 
-
-    Foo Foo::operator-() const{}                    //unary operator '-x'
-
-* postfix vs. prefix
-  dummy operator to differentiate, non-const
-    
-    operator++();       //prefix version '++x'
-    operator++(int);    //postfix version 'x++' - more expensive
-
-* operator[]:
-  WARNING! don't call it on 'Foo*' - this does not work as in C
-* operator():
-  defines both type and number of arguments, used for functors implementing -
-  we can have separate objects of the same function, not possible with global
-  function,
-
-### User-defined conversions
-
-1. narrowing
-  Uniform initialization prevents narrowing, which should be expressed
-  explicitly.
-
-    int i = 0x4141;
-    // char c( i ); //this would silently compile and perform casting!
-    // char c{ i }; //error: narrowing non-constant expression, cannot safe-check
-    char c{ static_cast<char>(i) };     //correct!
-
-2. casting operators
-  have no returned type,
-
-    operator int() { /* body */ }
-  //also
-    operator Bar() { /* body */ }
-  //now possible e.g.:
-    int c = static_cast<int>( fooObj );
-
-3. converting constructors:
-  - implicit conversion: when a function expects `Foo`, and gets `int`, but
-    there is a constructor `Foo(int)`, then it is implicitly converted. This
-    can be switched off with `explicit` keyword - constructor will not be used
-    for implicit conversions.
-
-
-Move semantics
+7. Move semantics
 --------------------------------------------------------------------------------
 * lvalue & rvalue
   - lvalue - everything that can give you an address of memory
@@ -504,7 +663,7 @@ Move semantics
         y.foo();            // compiler will not protest(?) but this is bad
 
 
-Ownership
+8. Ownership
 --------------------------------------------------------------------------------
 
 * move-only types
@@ -525,7 +684,7 @@ Ownership
 
 
 
-Relationships
+9. Relationships
 --------------------------------------------------------------------------------
 
 ### Composition
@@ -555,7 +714,7 @@ Relationships
 - usually not represented at a class level
 
 
-Inheritance
+10. Inheritance
 -------------------------------------------------------------------------------
 
 - "is-a" relationship, child specifies more generic parent or shows progress
@@ -594,61 +753,6 @@ Inheritance
 - friends are not inherited, child objects needs to be casted to parent type to
   use its friend functions,
 
-### Virtual functions
-Pointer to parent, obtained from child object, is normally able to see only the
-scope of parent class. It makes sense, it is not aware about derived classes -
-no polymorphism.
-
-* base functionality
-  The solution is `virtual` function, most-derived version will be called.
-  Polymorphism works only with reference and pointers.
-
-* covariant return type
-  Normally the prototypes of original and override virtual functions have to
-  match, with one objection, if return value is pointer or reference to a
-  class, the override can return pointer or reference to derived type instead,
-
-* it can be explicitly stopped:
-    
-    childPtr.Parent::fun();
-
-* override - RECOMMENDED
-    Tells explicitly, that a function is supposed to override its own version
-    in parent class, prevents inadvertent errors
-
-    class Parent {
-        public:
-            virtual void B() const;
-    };
-    class Child : public Parent {
-        virtual void B() override;  //compile-time error - different prototype
-    };
-
-* final - using previous example
-  - function
-    
-    virtual void B() const final;   //marks function as non-overrideable
-
-    class Parent final {};          //marks class as non-inheritable
-
-### Late/dynamic binding
-It is not known at compile time which function will be called. Extra
-indirection step required to jump to an address, where the function addres is
-stored. Cases:
-- function pointers
-- virtual functions
-
-Every class, that uses virtual functions, has its own 'vtable', which contains
-a single entry for each virtual function that can be called by the object of
-this class. The entry is a pointer to most-derived version of a function.
-
-Then, a base class has a `*_vptr` pointer. This pointer is actually inherited
-by derived classes which does the trick. It is set during object instantiation
-and points to `vtable` of a given class. Thanks to this, with this code:
-
-    Child c;                //_vptr set to vtable_Child
-    Parent &p = c;          //_vptr was part of Parent,
-                            //still points to vtable_Child
 
 ### Abstract functions and class
 
@@ -691,7 +795,7 @@ Last mention: ParentX/Y, that virtually inherit GrandParent, also have virtual
 tables (like for virtual functions) with pointers to functions of
 GrandParent(). So, under the hood, it seems to be the same mechanism.
 
-I/O
+11. I/O
 -------------------------------------------------------------------------------
 
 * manipulators - put inside the stream
@@ -715,7 +819,7 @@ I/O
     os.clear();
     cout << os.str();
 
-Templates
+12. Templates
 -------------------------------------------------------------------------------
 
 ### template functions
@@ -817,7 +921,7 @@ TODO
 http://thbecker.net/articles/rvalue_references/section_08.html
 
 
-Type functions: meta-programming
+13. Type functions: meta-programming
 -------------------------------------------------------------------------------
 
 Using information retrieved from type objects (vide QEMU TypeInfo) at compile
@@ -864,11 +968,11 @@ Especially usefull when writing templates. Good place to use
 
 
 
-Exceptions
+14. Exceptions
 -------------------------------------------------------------------------------
 
     try{ throw <exception>; }
-    catch( <type> ) {    }
+    catch( <exception> ) {    }
 
     catch(...) { /* catch-all */ }
 
@@ -884,7 +988,7 @@ Exceptions
 - destructor should never throw an exception!
 
 
-STL
+15. STL
 -------------------------------------------------------------------------------
 
 - std::unique_ptr<>
@@ -902,7 +1006,7 @@ STL
 - sort - not for lists, they have own .sort() method
 
 
-Concurrency
+16. Concurrency
 -------------------------------------------------------------------------------
 
 - Threads are sharing address space. Process = thread + AS + IPC,
@@ -1070,7 +1174,7 @@ Concurrency
     }
 
 
-Visitor
+17. Visitor
 -------------------------------------------------------------------------------
 
 Main problem: double dispatch implementation, adding funX(), funY() to
@@ -1108,7 +1212,7 @@ overwriting all of them by using double dispatching trick.
         };
 
 
-Embedded
+18. Embedded
 -------------------------------------------------------------------------------
 
 ### ROMmable class
