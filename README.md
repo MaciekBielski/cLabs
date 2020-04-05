@@ -1,23 +1,22 @@
-Notes on modern C++
+## Notes on modern C++
 
- TODO:
+### TODO:
 * smart pointers
 * copy and move
 * lambdas
 * typeid
-* casts: dynamic_cast, static_cast, reinterpret_cast, const_cast
 * alignof
 * noexcept
-* explicit
 
 
-1. Rules
+1. Best practices
 --------------------------------------------------------------------------------
 
 1.  Avoid automatic default constructors, at least use `= default`,
 2.  Make methods `const` whenever possible,
-3.  Constructors may be `explicit`, for blocked implicit conversions,
-4.  Container class should have initializer-list constructor,
+3.  Use `explicit` constructors with 0 or 1 argument for blocking implicit
+    conversions,
+4.  Container class should have `std::initializer_list<T>` constructor,
 6.  Virtual function should be marked `override` to force the compiler check if
     prototype matches (or if parent version is marked `final`)
 7.  Functions returning a pointer should return `unique_ptr` or `shared_ptr`
@@ -48,67 +47,60 @@ Notes on modern C++
     - After `auto y = move(x)`, you should no longer use `x`,
 12. Base class in a hierarchy should not be copied by default, use explicit
     `virtual clone` function for that,
-13. Code in a declarative way
-14. Passing/returning by value:
+13. Passing/returning by value:
     - Return by value by default (elided by compiler),
     - Pass by value in the constructor,
     - By default pass by `const T&`, for justified optimization pass by `T&&
       noexcept and move at the end`,
 
 
-2. Miscs
+Miscs
 --------------------------------------------------------------------------------
 
 * `NULL` vs. `nullptr`
     First is integer, second is pointer
 
-* Initialization from different type: `{}` vs. `=`
-    - Non-auto: `=` makes narrowing conversion (not always desired), `{}`
-      returns an error if type does not match
-    - Auto: use `=`
-    Use auto when not needed to be specific (precision, readability)
+* Initialization: `{}` vs. `=`
+    - Non-auto: Use list initialization `{}` by default (no narrowing)
+    - For auto: use `=` becuase of type deduced (assummed elision)
+        * default use for local variables
 
-        auto v {1,2,3};     // NOTE: v is initializer_list<int>
+            auto a = {x}          // track x regardless of its type
+            auto f = widget{}     // stick to a specific type
+            /* declarative way of telling what is going on */
+            auto pb = unique_ptr<Parent>{ make_unique<Child>() };
 
-* Variables: `const` vs. `constexpr`
+        * Exception: non-movable and non-copyable types
+
+            NoMoveNoCopy nmnc{};
+
+* Variables:
+    - global, namespace-scope and class-static are initialized to default value
+      (if not specified diferently) before `main()`
+        - static class members have to be explicitly defined outside of the
+          class.
+          - only members of type `static const int` can be initialized directly
+            inside the class body
+          - if private, can be accessed by static methods
+          - static methods can ONLY access static members
+    - non-static local variables and heap objects are uninitialized
     - `const`: value of the variable won't be modified
     - `constexpr`: constant evaluated at compile time
-        - `case X:` rules have to be `constexpr`
-            - vide: enum class logic operators
-            - `const` initialized with constant expresion serves as `constexpr`
+        - `const` initialized with constant expresion serves as `constexpr`
         - functions that only read an object can be `constexpr`
         - addresses (pointers) are assigned by the linker and sometimes not
           known at compile-time, otherwise can also be `constexpr`
-
-* __Lvalue references__ cannot be assigned to a non-const temporary
-    - Same for function arguments
-    - Such temporary lives until the end of reference's scope
-        
-        Foo &f {"Temporary"};               // error!
-        const Foo &f {"Temporary"}          // OK
-
-* __Rvalue references__ refers to temporary object which the user can modify
-    - Hint that the object will never be used again
-        - Copying can be replaced with move
-    - Functions return rvalues
-    - Const rvalue references make no sense
-    - Lvalue reference can be cast to rvalue reference by `move()`
-        - a.k.a `static_cast<T&&>(T t)`
-    - Reference collapse: When mixed together (`using`), lvalue reference
-      always wins
-
-* `enum class`
-    Strongly typed representation of a set of values. Same names between
-    different enum classes are not colliding (as with traditional enums, that
-    should have a dedicated namespace). Allowed operators overloading etc.
+    - global `const`, `constexpr` and aliases have internal linkage
+        - should be specified in a header file
+        - `extern const` has external linkage
 
 * Raw character string, usefull in regex
-    
+
         string s = R"(foo\w)";
         string s = R"--(contains usual terminator )")--";
 
 * Special containers:
-  - `pair` and `tuple` are heterogenious
+  - `pair` and `tuple` are heterogeneous
   - `array`, `vector` and `tuple` are contiguously allocated
   - `bitset` and `vectov<bool>` keep bits and access them via proxy objects,
 
@@ -125,46 +117,17 @@ Notes on modern C++
   - Have few interesting ways of initialization, eg. from part of basic_string,
   - `vector<bool>` is similar but has an allocator and changeable size,
 
-
 * `not_null`
   Run-time check when a pointer cannot be nullptr: `not_null<T*> ptr`,
 
 * `bitset`, `make_pair()`, `make_tuple()`
     
-* Aliases
-        template<typename Value>
-        using String_map = Map<string,Value>;
-
-* auto
-  - use it for local variable initialization by default, it reduces refactoring
-    eg. when changing constness, it would imply moving or copying (fallback)
-    but compiler does good job with 'returned type elision',
-  - without elision moving or copying it can be expensive!!
-  - if you want to stick to a certain type put it on the right side, it will
-    also be elided, also for cast-initializations:
-        `auto a = {x}`          // track x regardless of its type
-        `auto f = widget{}`     // stick to a specific type
-        `auto pb = unique_ptr<Parent>{ make_unique<Child>() };
-                            // declarative way of telling what is going on
-  - the only exception for `auto` initialization (with assummed elision) is for
-    non-movable and non-copyable types - then declare the type on the left
-    `T t{}`
-  - auto foo() -> int`
-    Trailing return type syntax, even this is optional but then function has to
-    be defined before it is used,
-
-* Input sanitizing
-  Handy methods: `cin.fail()`, `cin.clean()`, `cin.ignore()`
-
-* Null-pointer
-  `int *p = nullptr`
-
 * Non-failing `new`
   Pointer will be null if the allocation fails.
     int *txt = new (std::nothrow) char[3] { "Init value" };
     delete[] txt;
 
-* Foreach
+* Range-for
 
         for( auto &v : val){}
         for( const auto &v : val){}
@@ -189,9 +152,9 @@ Notes on modern C++
   For thread-only objects
 
 * `mutable`
-  Mutable member can be defined even in a const object!
+    Mutable member can be defined even in a const object!
 
-* `static_assert()`
+* `static_assert()
     Assertions at compile time, especially usefull in templates
 
 * `initializer_list<T> &il`
@@ -208,6 +171,48 @@ Notes on modern C++
 
 * `call_once()`
   To call something only once
+
+* friend functions and classes are declared inside the class that grants an
+  access, with friend class, all its methods have access to the granting class
+
+* C linkage convention:
+
+        extern "C" int foo;
+
+        #ifdef __cplusplus      // make C code suitable for C++
+        extern "C" {
+        #endif 
+            double a; int b;
+        #ifdef __cplusplus      // make C code suitable for C++
+        }
+        #endif
+
+Functions
+--------------------------------------------------------------------------------
+
+* prefix attributes: inline, auto, constexpr, const, static, virtual
+    - [[notreturn]] and more implementation-defined
+* postfix attributes: =delete, =default, override, final, noexcept, explicit
+    - conditional noexcept: `noexcept(<CONSTEXPR_PREDICATE>)`
+
+* Overloading - matching preference:
+    1. Exact match
+    2. Match by promotion to larger type
+    3. Match by standard conversion - all considered equal
+        - numeric-to-numeric
+        - enum-to-numeric
+        - zero to pointer type
+        - pointer to void pointer
+    4. Match by user-defined conversion - all considered equal
+
+* Prototype for array pass-by-value: `fun(int (&array)[4096]);`
+    - only the explicitly given size allowed
+    - useful in templates (separate function for each value!)
+
+* Passing temporary {}
+
+        fun({/* body */}) - for non-templates
+        fun(Foo<T>{/* body */}) - for templates
 
 
 Virtual functions
@@ -231,13 +236,18 @@ Virtual functions
                 - set `this` to the current CLASS
     - anyway, in both cases the type of __pointer/reference__ has to have such
       function declared at least,
+
 * use `override` to indicate that you redefine a virtual function
     - returns error if function is not virtual as expected
+
 * enough to mark only the oldest parent method `virtual`
     - mark all to be more explicit
+
 * __pure virtual__ must be redefined (makes a class __abstract__)
         virtual repr() const = 0;               // pure virtual
-* a class with virtual function should have virtual destructor
+
+* class has virtual function => it should have virtual destructor
+
 * `final` ends __virtual hierarchy__,
     - cannot be overwritten by derivative types
 
@@ -247,8 +257,97 @@ Virtual functions
   to `DerivX`
 
 
-Copy and move
+References
 --------------------------------------------------------------------------------
+* __Lvalue references__ points to an object - region of memory
+        
+        Foo& f {"Temporary"};               // error!
+        const Foo& f {"Temporary"}          // OK
+
+    - Typical lvalue reference must be initialized with exact type
+    - Const lvalue reference may use implicit type conversion
+
+* __Rvalue references__ points to a temporary object, examples: destructive
+  read, producer function return. Replaces copying where it is pointless to keep
+  the old object alive and never used
+
+        Foo&& x {fun()}       // bound to temporary return value
+        Foo&& y {some_val}    // error
+
+- `T&` can be cast to `T&&` by `move()` (a.k.a `static_cast<T&&>(T t)`)
+    // TODO: verify
+
+- Reference collapse (reference to reference): When chained together, lvalue
+  reference always wins
+
+
+Constructors, destructors, copy/move operations
+--------------------------------------------------------------------------------
+* For function-local and heap-allocated objects built-in types are uninitialized
+  if `{}` not used
+  
+        Bar buf1;       // built-in members not initialized
+        Bar buf2 {};    // built-in members zeroed
+
+* Construction order:
+    - base class
+    - member objects (declaration order NOT a list order)
+        - their constructors should be called from initialization list
+    - constructor body
+
+* Constructor disambiguation priority:
+    - `Foo();`
+    - `Foo(initializer_list<T>);`           // uses .begin(), .end(), .size()
+    - others - matched as other functions
+
+* Constructor delegation: specific constructor may call more generic one but
+  only from initalization list
+
+* The __move__ constructor and assignment operator:
+    1. Grab values from `f` to `this`
+    2. Zeroize/release `f` to make it ready for destruction
+        - moved-from object can also be assigned to
+    3. Cannot throw an exception
+
+* The fact of an object being temporary or not determines whether 'copy
+  assignment' or 'move assignment' will be used
+    - Can be enforced with `std::move`
+
+* Recommendations:
+    - Copy/move operations defined => define a destructor
+    - Explicit destructor defined => define or `=delete` copy/move operations
+    - Usually default __copy__ and __move__ in a hierarchy is a disaster. Base
+      class knows nothing about derived class fields.
+        - slicing: copying/moving only base-class part of a polymorphic object
+            - `=delete` defaults to avoid
+            - or inherit as private/protected
+            * `delete` is not to mute virtual function overriding as `final`
+              (the latter affects __vtable__)
+    - Type supports `move` => return it by value
+
+
+* Any method can be '=deleted' to allow/forbid specific conversions
+
+        Foo(char) = delete;     // delete only this
+
+        class Foo
+        {
+            Foo(long long);     // allow only this
+
+            /* Forbid anything else that could be casted to long long */
+            template<typename T> Foo(T) = delete;
+        };
+
+* catching exceptions from initialization list:
+
+        Foo::Foo(int a, double b)
+        try:
+            aa(a), bb(b)
+        {
+            /* constructor body */
+        } catch (std:exception& err) {
+            /* serve the exception */
+        }
 
         Foo(const Foo &f)                       // copy constructor
         Foo& operator=(const Vector &f)         // copy assignment
@@ -256,30 +355,56 @@ Copy and move
         Foo(Foo &&f)                            // move constructor, has rvalue
         Foo& operator=(Foo &&f)                 // move assignment, has rvalue
 
-* Usually default __copy__ and __move__ in a hierarchy is a disaster. Base
-  class knows nothing about derived class fields. Mute defaults with `=delete`
-  to avoid inadvertent errors.
-    - `delete` is not to mute virtual function overriding as `final` (the
-      latter affects __vtable__)
-* Always explicitly define a destructor. __move__ is not implicitly defined
-  when the class has an explicit destructor.
+* NOTE: Technically the compiler does not protest against use-after-move (!)
 
-* The compiler uses __move constructor__ at:
-    - Returning value from the function
-* When ambiguous, it can be enforced with `std::move`
+        auto c = circle {};
+        c.repr();
+        auto c_copy = circle{std::move(c)};	// move constructor
+        // shape& illegal {c};
+        // illegal.set_suffix("BLAH!");
+        c.repr();
+        c_copy.repr();
 
-* After a __move__, the source object should be ready for destruction
 
-* `const` fields have to be set from initialization list
 
-        Foo(): memArr{1,2,3} { /*constructor body*/ }
+Move semantics
+--------------------------------------------------------------------------------
+* constructors:
+  - copy constructor:       
+  - move constructor:       T::T( T&& rhs) {};
 
-* `std::initializer_list<T>` constructor
+* move operations - universal implementation:
+  - if right-hand side of an assignment is an rvalue it would be more efficient
+    to move instead of copying because **rvalue** is destroyed immediately
+    after - this destroy has to be secured (e.g. nulling pointers),
+  - 'construct & swap' idiom:
+    To reduce code duplication for assignment operator use one that takes an
+    argument **by value!** This value will be a copy or moved object, depends
+    on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
 
-        Foo::Foo(std::initializer_list<Bar> lst):
-            arr{new char[lst.size()]},
-            sz{lst.size()}
-        { /* lst.begin(), lst.end()... */ }
+        /* standard copy constructor */
+        T::T( const T &rhs) {
+        };
+
+        /* move constructor, initialization list setups current object
+         * that will be swapped with rhs - so it is zeroized
+         */
+        T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
+            // swap elements and make sure rhs destruction is safe
+            std::swap( tabPtr, rhs.tabPtr );
+        };
+
+        /* universal assignment operator */
+        T::T& operator=( T byValue ) {
+            std::swap( elem, byValue.elem ); 
+            return *this;
+        }
+
+  - after 'rvalue' assignment 'rhs' should no longer be used!
+
+        auto x = move(y);
+        y.foo();            // compiler will not protest(?) but this is bad
+
 
 
 Functors and lambda expressions
@@ -311,12 +436,8 @@ Smart pointers
     - Use `std::make_shared<T>()`
 
 
-
-
-
-
-
-### Late/dynamic binding
+Late/dynamic binding
+--------------------------------------------------------------------------------
 It is not known at compile time which function will be called. Extra
 indirection step required to jump to an address, where the function addres is
 stored. Cases:
@@ -334,66 +455,9 @@ and points to `vtable` of a given class. Thanks to this, with this code:
     Child c;                //_vptr set to vtable_Child
     Parent &p = c;          //_vptr was part of Parent,
                             //still points to vtable_Child
-### Constructors
-* non-static members should get assigned with default values inside class body,
-  but still default constructor has to be defined
-* construction order: initalization list, contained objects, current object
 
-* copy-constructor vs. assignment operator
-  The difference is important e.g. in case of dealing with objects that have
-  heap-allocated memory.
-  - Copy constructor initializes an object, it is used:
-    1. at initialization from another object
-    2. when passing/returning to/from a function BY VALUE
-    3. can be made private to prevent copying
-  - Assignment operator replaces existing object
-    - returns `*this`
-    - Self assignment needs to be detected!
-
-        if (this == &input) { return *this; }
-
-* constructor elision:
-  Foo(Foo(3,1)) can be optimized by the compilerto Foo(3,1)
-
-* constructor delegation: specific constructor call more generic one, only in
-  its initalization list!!! (C++11)
-
-* any method can be disabled by 'delete' to prevent conversion from some
-  specific type
-
-    Foo(char) = delete;
-
-  - or allow only specific type:
-
-    class Foo
-    {
-        Foo(long long); // Can create Foo() with a long long
-        template<typename T> Foo(T) = delete;
-            //But can't create it with
-            //anything else that potentially could be casted to long long
-    };
-
-### Misc
-* chaining objects
-
-    Foo& fun{ /* body */; return *this }
-
-* const object can call only 'const' methods, declared as below:
-    
-    int fun() const;
-
-* static members are associated with class, not instances, they have to be
-  explicitly defined outside of the class.
-  - only members of type `static const int` can be initialized directly inside
-    the class body
-  - if private, can be accessed by static methods (or normal methods but this
-    requires an instance)
-  - static methods can ONLY access static members
-
-  * friend functions and classes are declared inside the class that grants an
-  access, with friend class, all its methods have access to the granting class
-
-### Operators overloading
+Operators overloading
+-------------------------------------------------------------------------------
 * by function (may need to be friend)
   - should be used for symetric operators,
   - necessary if l-operand is not user defined
@@ -413,10 +477,20 @@ and points to `vtable` of a given class. Thanks to this, with this code:
 
 * operator[]:
   WARNING! don't call it on 'Foo*' - this does not work as in C
-* operator():
+
+* operator()():
   defines both type and number of arguments, used for functors implementing -
   we can have separate objects of the same function, not possible with global
   function,
+
+* operator `new` with placement syntax
+
+        /* second argument points to custom memory range */
+        void* operator new(size_t, void* p) { /* allocator body */ };
+        void *mempool = reinterpret_cast<void*>(0xF00F);
+        Foo *f = new(mempool) Foo{};
+        /* destruction needs to be done with care */
+
 
 ### User-defined conversions
 
@@ -516,151 +590,57 @@ How to use:
   `function<F>`
 
 
-4. Overloaded functions
+Lambdas
 --------------------------------------------------------------------------------
 
-Matching preference:
-1. Exact match
-2. Match by promotion to larger type
-3. Match by standard conversion - all considered equal
-    - numeric-to-numeric
-    - enum-to-numeric
-    - zero to pointer type
-    - pointer to void pointer
-4. Match by user-defined conversion - all considered equal
+        auto lambdaName = [ <capture_list> ]( <parameters> ) mutable noexcept
+            { /* body */ };
 
-* default params (rightmost) don't count for methods matching
+* Capture list
+    - `[a, b]`  - capture variables by value, safer when lambda may outlive the
+                  scope (eg. passed to another thread)
+    - `[&x]`    - only outer x will be captured, by reference,
+    - `[=x]`    - only outer x will be captured, by value
+    - `[this]`  - member lambda - other members always passed by reference
+    - `[&,y,z]` - capture all by reference, y, z by value
 
-
-5. Lambdas
---------------------------------------------------------------------------------
-
-        auto lambdaName = [&]( const string& s ) mutable { return s > outerStr };
-
-* `mutable` if changes captured elements,
-* [] - capture list to pass elements from the environment,
-  - by default lambda does not modify them,
-  - otherwise lambda has to be `mutable`,
-* () - parameters list, arguments passed during call,
-
-
-- `[a, b]`  - capture variables as they are declared,
-- `[this]`  - member lambda - other members always passed by reference
-- `[&x]`    - only outer x will be captured, by reference,
-- `[&x]`    - only outer x will be captured, by reference,
-- `[&,y,z]` - capture all by reference,
-- `[=x]`    - only outer x will be captured, by value
-- `[=,y,z]` - capture all by value,
-
-* Capturing by value is safer when lambda may outlive the caller (eg. passed to
-  another thread),
+* `mutable` if changes own state (captured elements),
 
 * Generic lambdas with `auto` arguments (C++14)
 
     auto do_sum  = [](auto op1, auto op2){ return op1 + op2; };
 
-  can be also inline, `svec` is a vector<string>:
-
-    std::accumulate(svec.begin(), svec.end(), std::string(""),
-                             [](auto op1,auto op2){ return op1+op2; } )
+* Recurrsion possible only for lambdas of type `std::function<Foo(<args>)>`
 
 
 6. Named casts
 --------------------------------------------------------------------------------
 
-* Static
-  - for reversing implicit conversions (eg. int-to-void or derived-to-parent):
+* const_cast<T>: getting RW access to const
+* static_cast<T>: reversing implicit conversions (eg. derived-to-parent):
 
         void *vp = &x;
         int *ip = static_cast<int*>(vp);
 
-* Reinterpret
-  - re-interpretting bit patters like long-to-ptr or fun-to-void
-    void funFoo(){}
+* reinterpret_cast<T>: reinterpret bit pattern (eg. long-to-ptr)
 
-        cout << reinterpret_cast<void*>(funFoo);
         auto mem = reinterpret_cast<Memory*> (0x400000);
 
-* Const
-  - for getting rid of const
-
-
-* Dynamic
+* dynamic_cast<T>: run-time check, verifies class hierarchy
   - Uses RTTI, used when conversion correctness cannot be checked by the
     compiler - downcasting and crosscasting,
   - casted type has to be polymorphic (have virtual functions) - pointer to
     `type_info` is stored in `vtbl`
-  - Check "is instance", can return `nullptr`, use it if a failure is
-    considered valid alternative
+  - Approach1: can return `nullptr`, use it if a failure is considered valid
+    alternative
 
         if( auto c = dynamic_cast<Circle *>( shape_ptr ) )
           c.tellRadius();
 
-  - Also other version, but this can throw "std::bad_cast", use it if a failure
-    is considered an error
+  - Approach2: use it if a failure is considered an error
 
         Circle &c { dynamic_cast<Circle *>( *shape_ptr )};
 
-  - for 'upcasts' it is like simple assignment
-    
-        Base *basePtr = dynamic_cast<Base*>(drvPtr);
-        
-  - also `typeId' uses RTTI,
-
-
-7. Move semantics
---------------------------------------------------------------------------------
-* lvalue & rvalue
-  - lvalue - everything that can give you an address of memory
-  - rvalue - everything that is not lvalue, you cannot assign to it, eg.
-    temporary object returned from a function,
-
-* The rvalue refrence refer to rvalues (temporary object). Sth declared as an
-  rvalue reference `T&& t` can be used as **rvalue or lvalue** reference.
-  - If it has a name then it will be used as lvalue,
-  - If a type does not support moving rvalue acts as lvalue,
-  - Rvalue reference refers to a temporary object that is never used later,
-  Return value is copied to a temporary object and this objects can be bind to
-  rvalue reference instead of being copied again to some other object (C++03).
-
-* Rvalues can be bind to `T&&` or `const T&`, for backward compatibility but
-  then, if the object is passed by value, we fall back to copying.
-
-* constructors:
-  - copy constructor:       
-  - move constructor:       T::T( T&& rhs) {};
-
-* move operations - universal implementation:
-  - if right-hand side of an assignment is an rvalue it would be more efficient
-    to move instead of copying because **rvalue** is destroyed immediately
-    after - this destroy has to be secured (e.g. nulling pointers),
-  - 'construct & swap' idiom:
-    To reduce code duplication for assignment operator use one that takes an
-    argument **by value!** This value will be a copy or moved object, depends
-    on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
-
-        /* standard copy constructor */
-        T::T( const T &rhs) {
-        };
-
-        /* move constructor, initialization list setups current object
-         * that will be swapped with rhs - so it is zeroized
-         */
-        T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
-            // swap elements and make sure rhs destruction is safe
-            std::swap( tabPtr, rhs.tabPtr );
-        };
-
-        /* universal assignment operator */
-        T::T& operator=( T byValue ) {
-            std::swap( elem, byValue.elem ); 
-            return *this;
-        }
-
-  - after 'rvalue' assignment 'rhs' should no longer be used!
-
-        auto x = move(y);
-        y.foo();            // compiler will not protest(?) but this is bad
 
 
 8. Ownership

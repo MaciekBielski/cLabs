@@ -2,48 +2,92 @@
 #include <iostream>
 #include <memory>
 
+static void print(const std::string &s) { std::cout<< s << std::endl; }
+
 namespace virt_funs
 {
 
 class shape {
 public:
 	shape() = default;
-	virtual ~shape() { std::cout<< this->c <<std::endl; };
-	virtual void repr() const { std::cout << this->name << std::endl; };
+	shape(const shape &orig) = delete;
+	virtual ~shape() = default;
+
+	shape& operator=(const shape &orig) = delete;
+
+	virtual void repr() const { print(this->name); };
+	void set_suffix(std::string&& _s) { this->name += _s; };
 private:
-	char c{'S'};
 	std::string name{"shape"};
 };
 
 class circle : public shape {
 public:
 	circle() = default;
-	~circle() { std::cout<< this->c <<std::endl; };
-	void repr() const override final { std::cout << this->name << std::endl; };
+	circle(const circle &orig) {
+		name = R"-("(copied_circle)")-";
+		print(R"([circle]: copying constructor)");
+	};
+	circle(circle &&orig) {
+		orig.name = R"-("(empty)")-";
+		name = R"-("(moved_circle)")-";
+		print(R"([circle]: move constructor)");
+	}
+	~circle() = default;
+
+	circle& operator=(const circle &orig) {
+		name = R"-("(copy_assigned_circle)")-";
+		print(R"([circle]: copy assignment)");
+
+		return *this;
+	}
+	circle& operator=(circle &&orig) {
+		orig.name = R"-("(empty)")-";
+		name = R"-("(move_assigned_circle)")-";
+		print(R"([circle]: move assignment)");
+
+		return *this;
+	}
+
+	void repr() const override { print(this->name); };
 private:
-	char c{'C'};
 	std::string name{R"--("(circle)")--"};
 };
 
 class wheel : public circle {
 public:
 	wheel() = default;
-	~wheel() { std::cout<< this->c <<std::endl; };
+
+	~wheel() = default;
+	void repr() const override { print(this->name); };
 private:
-	char c{'W'};
-	std::string name{R"--(wheel "))--"};
+	std::string name{R"--(<"wheel">)--"};
 };
 
-std::unique_ptr<wheel> prod_wheel()
+static void test_moving(shape &&s)
 {
-	return std::make_unique<wheel>();
+	print("--- destroying passed object---");
+	s.repr();
 }
 
 int main()
 {
-	std::unique_ptr<shape> s{new wheel{}};
-	s->repr();
+	auto s = wheel {};
+	s.repr();
+	auto s_copy = wheel{s};			// copy constructor
+	s_copy.repr();
+	std::cout<<"----\n";
 
+	auto c = circle {};
+	c.repr();
+	auto c_copy = circle{std::move(c)};	// move constructor
+	// shape& illegal {c};
+	// illegal.set_suffix("BLAH!");
+	c.repr();
+	c_copy.repr();
+
+	// test_moving(std::move(c));
 	return 0;
 }
 } /* namespace virt_funs */
+
