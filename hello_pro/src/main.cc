@@ -15,6 +15,6 @@ int main()
 int main()
 {
 	// return enum_class::main();
-	// return virt_funs::main();
-	return extern_linkage::main();
+	return virt_funs::main();
+	// return extern_linkage::main();
 }

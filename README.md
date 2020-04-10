@@ -234,8 +234,6 @@ Virtual functions
                 - change CLASS to the direct parent and try again
             - if METHOD is implemented:
                 - set `this` to the current CLASS
-    - anyway, in both cases the type of __pointer/reference__ has to have such
-      function declared at least,
 
 * use `override` to indicate that you redefine a virtual function
     - returns error if function is not virtual as expected
