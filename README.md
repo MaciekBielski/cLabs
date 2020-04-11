@@ -1,6 +1,8 @@
 ## Notes on modern C++
 
 ### TODO:
+* operator[], operator()() overloading
+* operator++ as member vs. non-member
 * smart pointers
 * copy and move
 * lambdas
@@ -9,7 +11,8 @@
 * noexcept
 
 
-1. Best practices
+
+Best practices
 --------------------------------------------------------------------------------
 
 1.  Avoid automatic default constructors, at least use `= default`,
@@ -52,6 +55,7 @@
     - Pass by value in the constructor,
     - By default pass by `const T&`, for justified optimization pass by `T&&
       noexcept and move at the end`,
+
 
 
 Miscs
@@ -99,6 +103,10 @@ Miscs
         string s = R"(foo\w)";
         string s = R"--(contains usual terminator )")--";
 
+* Implicit conversions:
+    - Only one level allowed, others have to be explicit
+    - Not applied to non-const pointers/references (TODO: verify)
+
 * Special containers:
   - `pair` and `tuple` are heterogeneous
   - `array`, `vector` and `tuple` are contiguously allocated
@@ -137,6 +145,18 @@ Miscs
 
 * Function pointers
     using FunPtr = std::function<Foo(const Foo &a, const Foo &b)>;
+    - AVOID: inheriting all parent class constructors
+        - altenative to calling specific constructors from initialization list
+
+        struct Bar { using Foo::Foo; /* all constructors */ };
+
+* Friends
+    - function: access to all private members of a class
+    - class: all member functions of this class become friends implicitly
+
+* Abstract class
+    - At least one __pure virtual__ (=0) function
+    - Should have no constructors and virtual destructor
 
 * `decltype(x) val`;
     Determines the type of x at compile time. Eg. in templates, a type can
@@ -187,6 +207,8 @@ Miscs
         }
         #endif
 
+
+
 Functions
 --------------------------------------------------------------------------------
 
@@ -197,7 +219,7 @@ Functions
 
 * Overloading - matching preference:
     1. Exact match
-    2. Match by promotion to larger type
+    2. Match by promotion to larger type (of the same category?)
     3. Match by standard conversion - all considered equal
         - numeric-to-numeric
         - enum-to-numeric
@@ -213,6 +235,7 @@ Functions
 
         fun({/* body */}) - for non-templates
         fun(Foo<T>{/* body */}) - for templates
+
 
 
 Virtual functions
@@ -248,11 +271,17 @@ Virtual functions
 
 * `final` ends __virtual hierarchy__,
     - cannot be overwritten by derivative types
+    - also class can be final!
+        - all virtual functions made final
+        - further deriving from this class forbidden
+
+        class Bar final: public Foo { /* body */ };
 
 * __covariant return type__: prototypes (and "constness") of original and
   override functions have to match with one exception; if `orig_meth()` returns
   pointer/reference to `BaseX` then `deriv_meth()` may return pointer/reference
   to `DerivX`
+
 
 
 References
@@ -277,6 +306,7 @@ References
 
 - Reference collapse (reference to reference): When chained together, lvalue
   reference always wins
+
 
 
 Constructors, destructors, copy/move operations
@@ -365,57 +395,87 @@ Constructors, destructors, copy/move operations
 
 
 
-Move semantics
+Operators overloading
+-------------------------------------------------------------------------------
+
+* By non-member function (may need to be friend)
+    - Place in the namespace common with the class,
+    - Should be used for comutative operators (symmetric versions),
+    - Necessary if l-operand is not user-defined
+
+        Foo operator+(const Foo &l, const Foo &r){}
+
+* By non-static member function
+    - only method for '=', '[]', '()', '->' 
+
+        Foo Foo::operator-() {}         // unary operator '-x'
+
+* Overload lookup priority:
+    - object class or base class
+    - namespace of first operand, then second, etc.
+
+* Increment/Decrement: postfix vs. prefix
+    - dummy argument to differentiate, non-const
+    
+        Foo& Foo::operator++();       //prefix version '++x', in-place possible
+        Foo  Foo::operator++(int);    //postfix version 'x++'
+            // more expensive, always has to produce a new instance
+
+* Indexing: operator[]:
+    - WARNING! don't call it on 'Foo*' - this does not work as in C
+
+* Allocation: operator `new` with placement syntax
+    - Can be `static` class members
+
+        /* second argument points to custom memory range */
+        void* operator new(size_t, void* p) { /* allocator body */ };
+        void *mempool = reinterpret_cast<void*>(0xF00F);
+        Foo *f = new(mempool) Foo{};
+        /* destruction needs to be done with care */
+        /* for polymorphic objects hope for virtual destructor */
+
+* Literals operator
+
+    constexpr complex<double> operator "" i(double d) { return {0,d}; };
+    // allowed code:
+    auto dd = complex<double> {3 + 4i};
+
+* Conversion operator (not conversion constructor!)
+
+    Foo::operator Bar();                // make Bar out of Foo object
+    Bar b {fooObj};
+    // this may use either conversion operator or constructor
+    // implementing both may be lead to ambiguity
+
+    explicit Foo::operator int();        // make int out of Foo object
+    // this operator is allowed only where explicit constructor would have been
+    // used
+    int c {static_cast<int>( fooObj )};
+
+
+
+Lambdas
 --------------------------------------------------------------------------------
-* constructors:
-  - copy constructor:       
-  - move constructor:       T::T( T&& rhs) {};
 
-* move operations - universal implementation:
-  - if right-hand side of an assignment is an rvalue it would be more efficient
-    to move instead of copying because **rvalue** is destroyed immediately
-    after - this destroy has to be secured (e.g. nulling pointers),
-  - 'construct & swap' idiom:
-    To reduce code duplication for assignment operator use one that takes an
-    argument **by value!** This value will be a copy or moved object, depends
-    on whether 'rvalue' or 'lvalue' is being assigned. Then swap elements.
+        auto lambdaName = [ <capture_list> ]( <parameters> ) mutable noexcept
+            { /* body */ };
 
-        /* standard copy constructor */
-        T::T( const T &rhs) {
-        };
+* Capture list
+    - `[a, b]`  - capture variables by value, safer when lambda may outlive the
+                  scope (eg. passed to another thread)
+    - `[&x]`    - only outer x will be captured, by reference,
+    - `[=x]`    - only outer x will be captured, by value
+    - `[this]`  - member lambda - other members always passed by reference
+    - `[&,y,z]` - capture all by reference, y, z by value
 
-        /* move constructor, initialization list setups current object
-         * that will be swapped with rhs - so it is zeroized
-         */
-        T::T(T &&rhs) noexcept : tabPtr{ nullptr } {
-            // swap elements and make sure rhs destruction is safe
-            std::swap( tabPtr, rhs.tabPtr );
-        };
+* `mutable` if changes own state (captured elements),
 
-        /* universal assignment operator */
-        T::T& operator=( T byValue ) {
-            std::swap( elem, byValue.elem ); 
-            return *this;
-        }
+* Generic lambdas with `auto` arguments (C++14)
 
-  - after 'rvalue' assignment 'rhs' should no longer be used!
+    auto do_sum  = [](auto op1, auto op2){ return op1 + op2; };
 
-        auto x = move(y);
-        y.foo();            // compiler will not protest(?) but this is bad
+* Recurrsion possible only for lambdas of type `std::function<Foo(<args>)>`
 
-
-
-Functors and lambda expressions
---------------------------------------------------------------------------------
-
-        [&](int x){ return x%outer; }
-
-* Syntax sugar, a __functor__ is generated, that is a class with `operator()`
-  defined as the lambda function body
-    - `[&]` => local variables are captured by reference
-    - `[]` => nothing is captured
-    - `[&y]` => only `y` is captured
-    - `[=y]` => capture `y` by value
 
 
 Smart pointers
@@ -434,87 +494,6 @@ Smart pointers
     - Use `std::make_shared<T>()`
 
 
-Late/dynamic binding
---------------------------------------------------------------------------------
-It is not known at compile time which function will be called. Extra
-indirection step required to jump to an address, where the function addres is
-stored. Cases:
-- function pointers
-- virtual functions
-
-Every class, that uses virtual functions, has its own 'vtable', which contains
-a single entry for each virtual function that can be called by the object of
-this class. The entry is a pointer to most-derived version of a function.
-
-Then, a base class has a `*_vptr` pointer. This pointer is actually inherited
-by derived classes which does the trick. It is set during object instantiation
-and points to `vtable` of a given class. Thanks to this, with this code:
-
-    Child c;                //_vptr set to vtable_Child
-    Parent &p = c;          //_vptr was part of Parent,
-                            //still points to vtable_Child
-
-Operators overloading
--------------------------------------------------------------------------------
-* by function (may need to be friend)
-  - should be used for symetric operators,
-  - necessary if l-operand is not user defined
-
-    Foo operator+(const Foo &l, const Foo &r){}     //sum operator
-
-* by method
-  by design necessary for '=', '[]', '()', '->' 
-
-    Foo Foo::operator-() const{}                    //unary operator '-x'
-
-* postfix vs. prefix
-  dummy operator to differentiate, non-const
-    
-    operator++();       //prefix version '++x'
-    operator++(int);    //postfix version 'x++' - more expensive
-
-* operator[]:
-  WARNING! don't call it on 'Foo*' - this does not work as in C
-
-* operator()():
-  defines both type and number of arguments, used for functors implementing -
-  we can have separate objects of the same function, not possible with global
-  function,
-
-* operator `new` with placement syntax
-
-        /* second argument points to custom memory range */
-        void* operator new(size_t, void* p) { /* allocator body */ };
-        void *mempool = reinterpret_cast<void*>(0xF00F);
-        Foo *f = new(mempool) Foo{};
-        /* destruction needs to be done with care */
-
-
-### User-defined conversions
-
-1. narrowing
-  Uniform initialization prevents narrowing, which should be expressed
-  explicitly.
-
-    int i = 0x4141;
-    // char c( i ); //this would silently compile and perform casting!
-    // char c{ i }; //error: narrowing non-constant expression, cannot safe-check
-    char c{ static_cast<char>(i) };     //correct!
-
-2. casting operators
-  have no returned type,
-
-    operator int() { /* body */ }
-  //also
-    operator Bar() { /* body */ }
-  //now possible e.g.:
-    int c = static_cast<int>( fooObj );
-
-3. converting constructors:
-  - implicit conversion: when a function expects `Foo`, and gets `int`, but
-    there is a constructor `Foo(int)`, then it is implicitly converted. This
-    can be switched off with `explicit` keyword - constructor will not be used
-    for implicit conversions.
 
 3. Smart pointers
 --------------------------------------------------------------------------------
@@ -588,27 +567,27 @@ How to use:
   `function<F>`
 
 
-Lambdas
+
+Late/dynamic binding
 --------------------------------------------------------------------------------
+It is not known at compile time which function will be called. Extra
+indirection step required to jump to an address, where the function addres is
+stored. Cases:
+- function pointers
+- virtual functions
 
-        auto lambdaName = [ <capture_list> ]( <parameters> ) mutable noexcept
-            { /* body */ };
+Every class, that uses virtual functions, has its own 'vtable', which contains
+a single entry for each virtual function that can be called by the object of
+this class. The entry is a pointer to most-derived version of a function.
 
-* Capture list
-    - `[a, b]`  - capture variables by value, safer when lambda may outlive the
-                  scope (eg. passed to another thread)
-    - `[&x]`    - only outer x will be captured, by reference,
-    - `[=x]`    - only outer x will be captured, by value
-    - `[this]`  - member lambda - other members always passed by reference
-    - `[&,y,z]` - capture all by reference, y, z by value
+Then, a base class has a `*_vptr` pointer. This pointer is actually inherited
+by derived classes which does the trick. It is set during object instantiation
+and points to `vtable` of a given class. Thanks to this, with this code:
 
-* `mutable` if changes own state (captured elements),
+    Child c;                //_vptr set to vtable_Child
+    Parent &p = c;          //_vptr was part of Parent,
+                            //still points to vtable_Child
 
-* Generic lambdas with `auto` arguments (C++14)
-
-    auto do_sum  = [](auto op1, auto op2){ return op1 + op2; };
-
-* Recurrsion possible only for lambdas of type `std::function<Foo(<args>)>`
 
 
 6. Named casts
