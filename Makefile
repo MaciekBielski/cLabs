@@ -23,6 +23,10 @@ threadCleanup: threadCleanupHandler.cpp
 shm-posix-producer-orig: shm-posix-producer-orig.c
 	${CC} -g -o $@ $< -lrt
 
+fifo: fifo_ping.c fifo_pong.c
+	${CC} -g -std=c99 -o fifo_ping fifo_ping.c
+	${CC} -g -std=c99 -o fifo_pong fifo_pong.c
+
 ROOT=/opt/clang_llvm_3.9.0
 CLANG=$(ROOT)/bin/clang++
 FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
