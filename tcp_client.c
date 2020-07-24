@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define SOCK_NM	"/tmp/lxc_test.sock"
+#define SOCK_NM	"/tmp/lxc_tcp.sock"
 #define BUFF_SZ 128
 #define MSG_NB 8
 

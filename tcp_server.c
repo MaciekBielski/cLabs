@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 
-#define SOCK_NM	"/tmp/lxc_test.sock"
+#define SOCK_NM	"/tmp/lxc_tcp.sock"
 #define LISTEN_BACKLOG 1
 #define BUFF_SZ 128
 
@@ -41,6 +42,8 @@ int main(int argc, char *argv[])
 
 	ret = sock_bind(entry_sock);
 	if (ret == -1) err_exit("[!] bind");
+
+	chmod(SOCK_NM, 0666);
 
 	ret = listen(entry_sock, LISTEN_BACKLOG);
 	if (ret == -1) err_exit("[!] listen");
