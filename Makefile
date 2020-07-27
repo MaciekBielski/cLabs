@@ -27,9 +27,9 @@ fifo: fifo_ping.c fifo_pong.c
 	${CC} -g -std=c99 -o fifo_ping fifo_ping.c
 	${CC} -g -std=c99 -o fifo_pong fifo_pong.c
 
-tcp: tcp_client.c tcp_server.c
-	${CC} -g -std=c99 -o tcp_client tcp_client.c
-	${CC} -g -std=c99 -o tcp_server tcp_server.c
+tcp_file: tcp_file_client.c tcp_file_server.c
+	${CC} -g -std=c99 -o tcp_file_client tcp_file_client.c
+	${CC} -g -std=c99 -o tcp_file_server tcp_file_server.c
 
 ROOT=/opt/clang_llvm_3.9.0
 CLANG=$(ROOT)/bin/clang++
