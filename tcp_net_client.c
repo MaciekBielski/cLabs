@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define _SOCK_ADDR "10.0.3.1"
+#define _SOCK_ADDR "127.0.0.1"
 #define _SOCK_PORT 50000
 #define BUFF_SZ 128
 #define MSG_NB 8
