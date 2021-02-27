@@ -18,7 +18,7 @@
 //static int give3(){ puts("--give3--"); return 5;}
 
 //4.
-#define STRINGIFY(X) ({ printf("%s\n", (#X)); }) 
+#define STRINGIFY(X) ({ printf("%s\n", (#X)); })
 
 //5.
 // Nested macro
@@ -27,17 +27,32 @@
 
 //6. Stringification example
 #define PARSE_SZ 4
-#define FMT_PATT(width) "%"#width"u%n"
+#define FMT_PATT(width) fun_##width##(float blah)
 #define FMT(arg) FMT_PATT(arg)
+
+#define TEST(a, b, c, d)  \
+	struct { \
+		a b; \
+		c d; \
+	}
+
+#define WRITER_OPTIONAL(writer, obj, field, writer_type_name) ({    \
+    if ((obj).field)) {                                            \
+        (writer).String(#field);                                    \
+        (writer).writer_type_name((obj).field);                 \
+    }})
+
 
 int main(int argc, char** argv)
 {
+    WRITER_OPTIONAL(writer, data.subdata, position, Uint);
     //1.
-    VARFOO("INFO: %s\n", "bar");
-    VARFOO("INFO: empty");
-    VARFOO2("INFO: %s\n", "bar");
-    VARFOO2("INFO: empty");
-    
+    // VARFOO("INFO: %s\n", "bar");
+    // VARFOO("INFO: empty");
+
+    // VARFOO2("INFO: %s\n", "bar");
+    // VARFOO2("INFO: empty");
+
     //2.
     //  if(argc==1)
     //    OUTF(3.14);
@@ -47,19 +62,20 @@ int main(int argc, char** argv)
     //    OUTS("argc==1");
     //  else
     //    OUTS("argc!=1");
-    
+
     //3.
-    //  printf("number is: %d\n", MIN(give5(),give3()) );
-    
-    //4.  
+     // printf("number is: %d\n", MIN(give5(),give3()) );
+
+
+    //4.
     //  STRINGIFY(MIN(4.5,8.3));
-    
-    //5. CUBE  
+
+    //5. CUBE
     //SQUARE( SQUARE(5));
-    
+
     //6.
-    FMT_PATT(PARSE_SZ)
-    FMT(PARSE_SZ)
+    // FMT_PATT(foo);
+    // FMT(PARSE_SZ);
 }
 
 

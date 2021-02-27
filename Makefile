@@ -37,9 +37,8 @@ tcp_net: tcp_net_server.c tcp_net_client.c tcp_net_server2.c tcp_net_server3.c
 	${CC} -g -std=c99 -o tcp_net_server2 tcp_net_server2.c
 	${CC} -g -std=c99 -o tcp_net_server3 tcp_net_server3.c
 
-ROOT=/opt/clang_llvm_3.9.0
-CLANG=$(ROOT)/bin/clang++
-FLAGS= -fcolor-diagnostics -std=c++14 -stdlib=libc++
+CLANG=/usr/bin/clang++
+FLAGS= -fcolor-diagnostics -std=c++17
 
 misc: misc.cpp
 	$(CLANG) $(FLAGS) $^ -o $@
@@ -48,7 +47,7 @@ threads: threads.cpp
 	$(CLANG) $(FLAGS) $^ -lpthread -o $@
 
 tidy:
-	$(ROOT)/bin/clang-tidy
+	/usr/bin/clang-tidy
 
 clean:
 	@-rm -rf flexThreads calc_parser threadCleanup
